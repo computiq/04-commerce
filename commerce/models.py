@@ -1,6 +1,6 @@
 import uuid
 
-from PIL.Image import Image
+from PIL import Image
 from django.contrib.auth import get_user_model
 from django.db import models
 
@@ -110,7 +110,9 @@ class OrderStatus(Entity):
 
 
 class Category(Entity):
-    parent = models.ForeignKey('self', verbose_name='parent', related_name='children',
+    parent = models.ForeignKey('self',
+                               verbose_name='parent',
+                               related_name='children',
                                null=True,
                                blank=True,
                                on_delete=models.CASCADE)
@@ -129,6 +131,9 @@ class Category(Entity):
         verbose_name = 'category'
         verbose_name_plural = 'categories'
 
+    @property
+    def children(self):
+        return self.children
 
 class Merchant(Entity):
     name = models.CharField('name', max_length=255)

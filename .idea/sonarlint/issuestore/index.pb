@@ -12,8 +12,6 @@ D
 >
 config/wsgi.py,7/a/7a4aaa54a3efb112f8e2592ed1507e33ab6a7b8c
 >
-config/urls.py,4/5/45b243d494ecd78f07818174452843086c64845d
->
 config/asgi.py,5/9/597ed58946079f795070145abd2ba40aaf51a0ae
 \
 ,.idea/inspectionProfiles/Project_Default.xml,4/9/496a238a6afa168dbaf6efd37bb459331589579c
@@ -31,9 +29,13 @@ N
 account/migrations/__init__.py,7/b/7bc8a653bcb2d639a49932a5ceac337f728844b4
 @
 commerce/apps.py,e/a/ea3c42abe4941ad1241819c1d6fbf5bb7bd659be
-G
-commerce/controllers.py,d/7/d75006fc585cc76b03456214e6978f29f375fc18
 O
 commerce/migrations/__init__.py,b/8/b81cf84376ffae4f5d23a7f977567a52e49d4e8c
-S
-#.idea/sonarlint/issuestore/index.pb,9/f/9fe84ebb15faf917b7def6236dba604453cc61e0
+9
+	README.md,8/e/8ec9a00bfd09b3190ac6b22251dbb1aa95a0579d
+@
+requirements.txt,1/9/19359a61ae2446b51b549167b014da2fcf265768
+A
+account/models.py,9/9/9937dda3027dc290afca56146cdf71d4733d0e5b
+A
+commerce/tests.py,5/2/52ea416cfb7f2a70c29e2ed02817ad03d3de8885
