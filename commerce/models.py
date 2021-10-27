@@ -79,7 +79,7 @@ class Item(Entity):
     product = models.ForeignKey('commerce.Product', verbose_name='product',
                                 on_delete=models.CASCADE)
     item_qty = models.IntegerField('item_qty')
-    ordered = models.BooleanField('ordered')
+    ordered = models.BooleanField('ordered', default=False)
 
     def __str__(self):
         return f''

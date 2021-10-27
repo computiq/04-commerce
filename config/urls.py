@@ -18,13 +18,15 @@ from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
 
-from commerce.controllers import products_controller, address_controller
+from commerce.controllers import products_controller, address_controller, vendor_controller, order_controller
 from config import settings
 
 api = NinjaAPI()
 
 api.add_router('products', products_controller)
 api.add_router('addresses', address_controller)
+api.add_router('vendors', vendor_controller)
+api.add_router('orders', order_controller)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

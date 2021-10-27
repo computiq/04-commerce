@@ -1,6 +1,4 @@
 
-9
-	manage.py,3/1/3156ad13e4d695cd526bbb7b031016ecba842270
 S
 #commerce/migrations/0001_initial.py,5/6/5672f685b93c26153a807ef6a52ff2a42f198564
 B
@@ -31,11 +29,16 @@ N
 commerce/apps.py,e/a/ea3c42abe4941ad1241819c1d6fbf5bb7bd659be
 O
 commerce/migrations/__init__.py,b/8/b81cf84376ffae4f5d23a7f977567a52e49d4e8c
-9
-	README.md,8/e/8ec9a00bfd09b3190ac6b22251dbb1aa95a0579d
 @
 requirements.txt,1/9/19359a61ae2446b51b549167b014da2fcf265768
 A
 account/models.py,9/9/9937dda3027dc290afca56146cdf71d4733d0e5b
 A
 commerce/tests.py,5/2/52ea416cfb7f2a70c29e2ed02817ad03d3de8885
+:
+
+.gitignore,a/5/a5cc2925ca8258af241be7e5b0381edf30266302
+B
+config/settings.py,7/6/769aa6664d3e5c284cbfb95fd9848a351a2e4e2b
+A
+commerce/admin.py,d/7/d7369e273d90449ac8ca98014a010a921d984597

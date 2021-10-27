@@ -63,13 +63,30 @@ class ProductOut(ModelSchema):
 
                         ]
 
+
 # class ProductManualSchemaOut(Schema):
 #     pass
-
 
 
 class CitySchema(Schema):
     name: str
 
+
 class CitiesOut(CitySchema, UUIDSchema):
+    pass
+
+
+class ItemSchema(Schema):
+    # user:
+    product: ProductOut
+    item_qty: int
+    ordered: bool
+
+
+class ItemCreate(Schema):
+    product_id: UUID4
+    item_qty: int
+
+
+class ItemOut(UUIDSchema, ItemSchema):
     pass

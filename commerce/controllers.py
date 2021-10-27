@@ -1,22 +1,60 @@
 from typing import List
 
+from django.contrib.auth.models import User
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema
+from commerce.models import Product, Category, City, Vendor, Item
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
+vendor_controller = Router(tags=['vendors'])
+order_controller = Router(tags=['orders'])
+
+
+@vendor_controller.get('', response=List[VendorOut])
+def list_vendors(request):
+    return Vendor.objects.all()
 
 
 @products_controller.get('', response={
     200: List[ProductOut],
     404: MessageOut
 })
-def list_products(request):
-    # product = Product.objects.all().select_related('merchant', 'category', 'vendor', 'label')
+def list_products(
+        request, *,
+        q: str = None,
+        price_from: int = None,
+        price_to: int = None,
+        vendor=None,
+):
+    products_qs = Product.objects.filter(is_active=True).select_related('merchant', 'vendor', 'category', 'label')
+
+    if not products_qs:
+        return 404, {'detail': 'No products found'}
+
+    if q:
+        products_qs = products_qs.filter(
+            Q(name__icontains=q) | Q(description__icontains=q)
+        )
+
+    if price_from:
+        products_qs = products_qs.filter(discounted_price__gte=price_from)
+
+    if price_to:
+        products_qs = products_qs.filter(discounted_price__lte=price_to)
+
+    if vendor:
+        products_qs = products_qs.filter(vendor_id=vendor)
+
+    return products_qs
+
+
+"""
+# product = Product.objects.all().select_related('merchant', 'category', 'vendor', 'label')
     # print(product)
     #
     # order = Product.objects.all().select_related('address', 'user').prefetch_related('items')
@@ -35,15 +73,7 @@ def list_products(request):
     # print(type(product.merchant))
     # print(type(product.category))
 
-    products_qs = Product.objects.all()
 
-    if products_qs:
-        return products_qs
-
-    return 404, {'detail': 'No products found'}
-
-
-"""
 Product <- Merchant, Label, Category, Vendor
 
 Retrieve 1000 Products form DB
@@ -138,3 +168,55 @@ def delete_city(request, id: UUID4):
     city = get_object_or_404(City, id=id)
     city.delete()
     return 204, {'detail': ''}
+
+
+@order_controller.get('cart', response={
+    200: List[ItemOut],
+    404: MessageOut
+})
+def view_cart(request):
+    cart_items = Item.objects.filter(user=User.objects.first(), ordered=False)
+
+    if cart_items:
+        return cart_items
+
+    return 404, {'detail': 'Your cart is empty, go shop like crazy!'}
+
+
+@order_controller.post('add-to-cart', response={
+    200: MessageOut,
+    # 400: MessageOut
+})
+def add_update_cart(request, item_in: ItemCreate):
+    try:
+        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
+        item.item_qty += 1
+        item.save()
+    except Item.DoesNotExist:
+        Item.objects.create(**item_in.dict(), user=User.objects.first())
+
+    return 200, {'detail': 'Added to cart successfully'}
+
+
+@order_controller.post('item/{id}/reduce-quantity', response={
+    200: MessageOut,
+})
+def reduce_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    if item.item_qty <= 1:
+        item.delete()
+        return 200, {'detail': 'Item deleted!'}
+    item.item_qty -= 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity reduced successfully!'}
+
+
+@order_controller.delete('item/{id}', response={
+    204: MessageOut
+})
+def delete_item(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.delete()
+
+    return 204, {'detail': 'Item deleted!'}
