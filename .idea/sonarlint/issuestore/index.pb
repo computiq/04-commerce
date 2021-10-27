@@ -42,3 +42,5 @@ B
 config/settings.py,7/6/769aa6664d3e5c284cbfb95fd9848a351a2e4e2b
 A
 commerce/admin.py,d/7/d7369e273d90449ac8ca98014a010a921d984597
+^
+.commerce/migrations/0002_auto_20211027_1637.py,d/a/daa0931328d2da3ea0d7525a016a5059103dbb53
