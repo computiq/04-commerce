@@ -12,7 +12,7 @@ Task resolution process:
 # Task 4
 
 This task in complimentary task for the ongoing project (COMMERCE).
-
+Note: don't forget to `makemigrations` and `migrate`
 
 ## implement the following API endpoints
 
