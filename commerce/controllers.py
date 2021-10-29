@@ -1,13 +1,19 @@
 from typing import List
-
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
+import random
+import string
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Product, Category, City, Vendor, Item, Address\
+                            , Order, OrderStatus
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema\
+                            ,VendorOut, ItemOut, ItemSchema, ItemCreate\
+                            , CategoryOut, AddressSchema, AddressesOut\
+                            , AddressesCreate, AddressesUpdate, OrderSchema\
+                            , OrderCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -17,7 +23,12 @@ order_controller = Router(tags=['orders'])
 
 @vendor_controller.get('', response=List[VendorOut])
 def list_vendors(request):
-    return Vendor.objects.all()
+    vendor_set = Vendor.objects.all()
+
+    if vendor_set:
+        return vendor_set
+
+    return 400, {detail: 'No categories found'}
 
 
 @products_controller.get('', response={
@@ -31,26 +42,26 @@ def list_products(
         price_to: int = None,
         vendor=None,
 ):
-    products_qs = Product.objects.filter(is_active=True).select_related('merchant', 'vendor', 'category', 'label')
+    products_set = Product.objects.filter(is_active=True).select_related('merchant', 'vendor', 'category', 'label')
 
-    if not products_qs:
+    if not products_set:
         return 404, {'detail': 'No products found'}
 
     if q:
-        products_qs = products_qs.filter(
+        products_set = products_set.filter(
             Q(name__icontains=q) | Q(description__icontains=q)
         )
 
     if price_from:
-        products_qs = products_qs.filter(discounted_price__gte=price_from)
+        products_set = products_set.filter(discounted_price__gte=price_from)
 
     if price_to:
-        products_qs = products_qs.filter(discounted_price__lte=price_to)
+        products_set = products_set.filter(discounted_price__lte=price_to)
 
     if vendor:
-        products_qs = products_qs.filter(vendor_id=vendor)
+        products_set = products_set.filter(vendor_id=vendor)
 
-    return products_qs
+    return products_set
 
 
 """
@@ -82,7 +93,7 @@ products = Product.objects.all()[:1000] (select * from product limit 1000)
 
 for p in products:
     print(p)
-    
+
 for every product, we retrieve (Merchant, Label, Category, Vendor) records
 
 Merchant.objects.get(id=p.merchant_id) (select * from merchant where id = 'p.merchant_id')
@@ -102,21 +113,24 @@ mids = [p1.merchant_id, p2.merchant_id, ...]
 .
 .
 
-select * from merchant where id in (mids) * 4 for (label, category and vendor)
+select * from merchant where id in (mids) * 4 for (label, category and venCitySchemador)
 
 4+1
 
 """
 
 
-@address_controller.get('')
-def list_addresses(request):
-    pass
+@products_controller.get('categories', response={
+    200: List[CategoryOut],
+    404: MessageOut
+})
+def list_categories(request):
+    category_set = Category.objects.all()
 
-
-# @products_controller.get('categories', response=List[CategoryOut])
-# def list_categories(request):
-#     return Category.objects.all()
+    if category_set:
+        return category_set
+        
+    return 404, {detail: 'No categories found'}
 
 
 @address_controller.get('cities', response={
@@ -124,10 +138,10 @@ def list_addresses(request):
     404: MessageOut
 })
 def list_cities(request):
-    cities_qs = City.objects.all()
+    city_set = City.objects.all()
 
-    if cities_qs:
-        return cities_qs
+    if city_set:
+        return city_set
 
     return 404, {'detail': 'No cities found'}
 
@@ -170,6 +184,58 @@ def delete_city(request, id: UUID4):
     return 204, {'detail': ''}
 
 
+@address_controller.get('', response={
+    200: List[AddressesOut],
+    404: MessageOut
+})
+def list_addresses(request):
+    address_set = Address.objects.all()
+
+    if address_set:
+        return address_set
+
+    return 404, {'detail': 'No addresses found'}
+
+
+@address_controller.get('{id}', response={
+    200: AddressesOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('', response={
+    201: AddressesOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressesCreate):
+    address = Address(**address_in.dict())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('{id}', response={
+    200: AddressesOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressesUpdate):
+    address = get_object_or_404(Address, id=id)
+    for attr, value in address_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+    return 200, address
+
+
+@address_controller.delete('{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': ''}
+
+
 @order_controller.get('cart', response={
     200: List[ItemOut],
     404: MessageOut
@@ -185,7 +251,7 @@ def view_cart(request):
 
 @order_controller.post('add-to-cart', response={
     200: MessageOut,
-    # 400: MessageOut
+    400: MessageOut
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
@@ -201,15 +267,25 @@ def add_update_cart(request, item_in: ItemCreate):
 @order_controller.post('item/{id}/reduce-quantity', response={
     200: MessageOut,
 })
-def reduce_item_quantity(request, id: UUID4):
+def reduce_item_quantity(request, id: UUID4, qty: int = 1):
     item = get_object_or_404(Item, id=id, user=User.objects.first())
     if item.item_qty <= 1:
         item.delete()
         return 200, {'detail': 'Item deleted!'}
-    item.item_qty -= 1
+    item.item_qty -= qty
     item.save()
 
     return 200, {'detail': 'Item quantity reduced successfully!'}
+
+
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4, qty: int = 1):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += qty
+    item.save()
+    return 200, {'detail': 'Item quantity increased successfully!'}
 
 
 @order_controller.delete('item/{id}', response={
@@ -220,3 +296,66 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+
+@order_controller.get('', response={
+    200: List[OrderSchema],
+    404: MessageOut
+    })
+def list_orders(request, ordered: bool = False):
+    order_set = Order.objects.filter(user=User.objects.first())
+    if not ordered:
+        order_set = order_set.filter(ordered=ordered)
+    if not order_set:
+        return 404, {'detail': 'no orders found'}
+    return order_set
+
+
+def gen_code(size=6):
+    chars = string.ascii_letters + string.digits
+    code = ''.join(random.choice(chars) for _ in range(size))
+    return code
+
+
+@order_controller.post('create-order', response={
+    200: MessageOut
+})
+def create_order(request, item_in: OrderCreate):
+    user = User.objects.first()
+    items = Item.objects.filter(id__in=item_in.items)
+    current_order = Order.objects.filter(user=user, ordered=False)
+
+    if current_order.exists():
+        new_order = current_order.first()
+        for i in items:
+            i.ordered = True
+            i.save()
+        new_order.items.add(*items)
+        new_order.total = new_order.order_total
+        new_order.save()
+        return 200, {'detail': 'updated the order successfully.'}
+    else:
+        for i in items:
+            i.ordered = True
+            i.save()
+        status = OrderStatus.objects.get(title="NEW")
+        new_order = Order.objects.create(
+            user=user,
+            status=status,
+            address=item_in.address,
+            ordered=False,
+            ref_code=gen_code(),
+            note=item_in.note
+        )
+        new_order.items.add(*items)
+        new_order.total = new_order.order_total
+        new_order.save()
+        return 200, {'detail': 'created the order successfully.'}
+
+
+
+    order.ordered = True
+    checkout_order.save()
+
+    print(order)
+
