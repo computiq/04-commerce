@@ -1,3 +1,5 @@
+import random
+import string
 from typing import List
 
 from django.contrib.auth.models import User
@@ -9,6 +11,9 @@ from pydantic import UUID4
 
 from commerce.models import Address, Product, Category, City, Vendor, Item
 from commerce.schemas import AddressIn, AddressOut, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate , OrderIn
+
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -257,6 +262,39 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
 @order_controller.post('create' , response= {201: MessageOut , 400: MessageOut})
 def create_order(request, payload:OrderIn):
     pass
+
+
+
+def generate_ref_code():
+    return ''.join(random.sample(string.ascii_letters + string.digits, 6))
+
+
+@order_controller.post('create-order', response=MessageOut)
+def create_order(request):
+    '''
+    * add items and mark (ordered) field as True
+    * add ref_number
+    * add NEW status
+    * calculate the total
+    '''
+
+    order_qs = Order(
+        user=User.objects.first(),
+        status=OrderStatus.objects.get(is_default=True),
+        ref_code=generate_ref_code(),
+        ordered=False,
+    )
+
+    user_items = Item.objects.filter(user=User.objects.first(), ordered=False)
+    user_items.update(ordered=True)
+
+    order_qs.items.append(*user_items)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+
+    return {'detail': 'order created successfully'}
+

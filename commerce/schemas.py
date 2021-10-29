@@ -106,3 +106,4 @@ class AddressIn(AddressSchema):
 class OrderIn(Schema):
     ref_code: str
     items: List[UUID4]
+
