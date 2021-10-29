@@ -57,3 +57,43 @@ Note: don't forget to `makemigrations` and `migrate`
   * adding items to the cart are separate from the previous order items
   * check if you have an active order, then the create-order endpoint will check for the matching items (i.e. if you have items in your active order that matches the items in the cart) and instead of adding them to the order, just merge them (add the quantities) 
   * you can only have one **active** order
+
+
+
+# Workflow
+
+* user lists the products
+  * user can filter and search based on a specific criteria
+* user clicks on (add to cart) and specify the qty
+  * item is created (cart item)
+  * user can increase the qty
+  * user can decrease the qty
+  * user can delete the item
+* user can order (create-order)
+* user can add his address (multip)
+  * user can update address
+  * user can delete address
+* user can checkout (checkout)
+
+
+
+## create order
+
+* add items and mark (ordered) field as True
+* add ref_number
+* add NEW status
+* calculate the total
+
+
+## checkout 
+
+* if this user has an active order
+* add address
+* accept note
+* update the status
+* mark order.ordered field as True
+
+## addresses
+
+* create addresses schema
+* create crud operations
