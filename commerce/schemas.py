@@ -46,7 +46,7 @@ class ProductOut(ModelSchema):
     vendor: VendorOut
     label: LabelOut
     merchant: MerchantOut
-    category: CategoryOut
+    category: CategoryOut = None
 
     class Config:
         model = Product
@@ -90,3 +90,19 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class AddressSchema(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    phone: str
+
+class AddressOut(AddressSchema , UUIDSchema):
+    city: CitiesOut
+
+class AddressIn(AddressSchema):
+    city_id: UUID4
+
+class OrderIn(Schema):
+    ref_code: str
+    items: List[UUID4]
