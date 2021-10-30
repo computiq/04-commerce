@@ -190,7 +190,7 @@ def view_cart(request):
 
 @order_controller.post('add-to-cart', response={
     200: MessageOut,
-    # 400: MessageOut
+    400: MessageOut
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
@@ -199,13 +199,9 @@ def add_update_cart(request, item_in: ItemCreate):
             item.item_qty += item_in.item_qty
         item.save()
     except Item.DoesNotExist:
-        item = Item(product_id=item_in.product_id, user=User.objects.first())
-        if item_in.item_qty > 0:
-            item.item_qty = item_in.item_qty
-        else:
-            item.item_qty=1
-        item.save()
-
+        if item_in.item_qty < 1:
+            return 400, {'detail': 'Quantity Value Must be Greter Than Zero'}
+        item = Item.objects.create(**item_in.dict(), user=User.objects.first())
     return 200, {'detail': 'Added to cart successfully'}
 
 
@@ -278,33 +274,36 @@ def delete_address(request, id: UUID4):
     404: MessageOut
 })
 def create_update_order(request):
-    user = User.objects.prefetch_related('items', 'address').first()
-    user_items = user.items.filter(ordered=False)
+    user = User.objects.prefetch_related('items','orders').first()
+    user_items = user.items.filter(user=user, ordered=False)
     if not user_items:
         return 404, {'detail': 'No Items Found To added to Order'}
 
     try:
-        order = Order.objects.prefetch_related('items').get(user=User.objects.first(), ordered=False)
 
-        if order:
-            for item in user_items:
-                ## merged doesnt complete because the time
-                item.ordered = True
-                item.save()
+        order = user.orders.prefetch_related('items').get(ordered=False)
+        list_of_productID_in_order = [item['product_id'] for item in order.items.values('product_id')]
+        list_of_difference_items = []
+        list_of_intersection_items = [(item,item.item_qty) if item.product_id in list_of_productID_in_order else list_of_difference_items.append(item.id) for item in user_items]
+        Item.objects.filter(id__in=list_of_difference_items).update(ordered=True)
 
+        for item,qty in list(filter(None,list_of_intersection_items)):
+            item_duplicated = order.items.get(product_id=item.product_id)
+            item_duplicated.item_qty = item_duplicated.item_qty + qty
+            item_duplicated.save()
+            item.delete()
 
-
-            order.items.add(*user_items)
-            order.total = order.total + user_items.count()
-            order.save()
-            return 200, {'detail':'order updated successfully!'}
+        order.items.add(*list_of_difference_items)
+        order.total = order.order_total
+        order.save()
+        return 200, {'detail':'order updated successfully!'}
     except Order.DoesNotExist:
-        for item in user_items:
-            item.ordered=True
-            item.save()
-        order_status, _ = OrderStatus.objects.get_or_create(title='NEW')
-        order = Order.objects.create(user=user, status=order_status, ref_code=gen_ref_code(), ordered=False, total=user_items.count())
+        order_status, _ = OrderStatus.objects.get_or_create(title='NEW', is_default=True)
+        order = Order.objects.create(user=user, status=order_status, ref_code=gen_ref_code(6), ordered=False)
         order.items.set(user_items)
+        order.total = order.order_total
+        user_items.update(ordered=True)
+        order.save()
         return 200, {'detail':'Order Created Successfully!'}
 
 
@@ -325,3 +324,4 @@ def checkout_order(request, order_in: OrderCheckout):
         setattr(order, k, v)
     order.save()
     return 200, {'detail':'checkout successfully!'}
+
