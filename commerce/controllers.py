@@ -237,18 +237,18 @@ def create_order(request):
     * calculate the total
     '''
 
-    order_qs = Order(
+    order_qs = Order.objects.create(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
         ref_code=generate_ref_code(),
         ordered=False,
     )
 
-    user_items = Item.objects.filter(user=User.objects.first(), ordered=False)
-    user_items.update(ordered=True)
+    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
 
-    order_qs.items.append(*user_items)
+    order_qs.items.add(*user_items)
     order_qs.total = order_qs.order_total
+    user_items.update(ordered=True)
     order_qs.save()
 
     return {'detail': 'order created successfully'}
