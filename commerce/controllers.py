@@ -245,7 +245,7 @@ def increase_item_quantity(request, id: UUID4):
 def create_update_order(request):
     # set ref_code to a randomly generated 6 alphanumeric value
     ref_code = ''.join(random.sample(string.ascii_letters+string.digits,6))
-    # get status by id 
+    # get status 
     try :
         get_status = OrderStatus.objects.get(title = "NEW")
     except OrderStatus.DoesNotExist :
@@ -259,23 +259,23 @@ def create_update_order(request):
     if order_qs.exists():
         order = order_qs.first()
         # add items to the order
-        for i in items_qs :
-            for j in items_qs_true:
-                if i.product.id == j.product.id and j.order.first().ordered == False :
-                    i.item_qty += j.item_qty
-                    i.save()
-                    j.delete()
-                    items_qs_true.update()
-                else :         
-                    i.ordered = True
-                    i.save()   
+        for i in items_qs :            
+            i.ordered = True
+            i.save()   
         order.items.add(*items_qs)
         order.save()
         return 200, {"detail": "Order Updated Successfully"}
     else:
         for i in items_qs :
-            i.ordered = True
-            i.save()
+            for j in items_qs_true:
+                if i.product.id == j.product.id and j.order.first().status.title == "NEW" :
+                    i.item_qty += j.item_qty
+                    i.save()
+                    j.delete()
+                    items_qs_true.update()
+                else :
+                    i.ordered = True
+                    i.save()
         order = Order.objects.create(user=User.objects.first(),status = get_status,ref_code =ref_code,ordered = False)
         order.items.add(*items_qs)
         order.save()
@@ -345,12 +345,6 @@ def checkout(request, address_in: AddressIn, city_name : str, note : str = None)
         checkout = Order.objects.get(ordered=False, user= User.objects.first())
     except Order.DoesNotExist:
         return 404 ,{'detail': 'Order Not Found'}
-
-    # get status with title processing
-    try :
-        get_status = OrderStatus.objects.get(title = "PROCESSING")
-    except OrderStatus.DoesNotExist :
-        get_status = OrderStatus.objects.create(title = "PROCESSING",is_default = True)
     # get note if exist 
     if note : 
         checkout.note = note
@@ -359,6 +353,5 @@ def checkout(request, address_in: AddressIn, city_name : str, note : str = None)
     checkout.total = checkout.order_total
     checkout.ordered = True
     checkout.address = address_qs
-    checkout.status = get_status
     checkout.save()
     return 200, {'detail': 'Checkout Created successfully'}
