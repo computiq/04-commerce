@@ -1,7 +1,7 @@
 from typing import List
 
 from ninja import ModelSchema, Schema
-from ninja.orm import create_schema
+# from ninja.orm import create_schema
 from pydantic import UUID4
 
 from commerce.models import Product, Merchant
@@ -18,7 +18,7 @@ class UUIDSchema(Schema):
 # ProductSchemaOut = create_schema(Product, depth=2)
 
 class VendorOut(UUIDSchema):
-    name: str
+    name:  str
     image: str
 
 
@@ -33,9 +33,9 @@ class MerchantOut(ModelSchema):
 
 
 class CategoryOut(UUIDSchema):
-    name: str
+    name:        str
     description: str
-    image: str
+    image:       str
     children: List['CategoryOut'] = None
 
 
@@ -90,3 +90,40 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class OrderStatusShcema(Schema):
+    title:      str
+    is_default: bool
+
+class CreateAdress(Schema):
+    work_address:    bool
+    address1:        str
+    address2:        str
+    city_id:         UUID4
+    phone:           str
+
+class AdressOut(CreateAdress, UUIDSchema):
+    pass
+
+class OrderShema(Schema):
+    address_id:  UUID4 = None
+    note:        str = None
+
+class OrderOut(OrderShema):
+    items:       List[ItemOut]
+    status_id:   UUID4 = None
+    total:       float
+    ref_code:    str
+    ordered:     bool
+
+class OrderShemaCreat(OrderShema):
+    address_id:  UUID4
+
+
+"""
+    @property
+    def order_total(self):
+        return sum(
+            i.product.discounted_price * i.item_qty for i in self.items.all()
+        )
+"""

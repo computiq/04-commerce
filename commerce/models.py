@@ -61,6 +61,7 @@ class Order(Entity):
     items = models.ManyToManyField('commerce.Item', verbose_name='items', related_name='order')
 
     def __str__(self):
+        # return f'{self.items}'
         return f'{self.user.first_name} + {self.total}'
 
     @property
@@ -82,7 +83,7 @@ class Item(Entity):
     ordered = models.BooleanField('ordered', default=False)
 
     def __str__(self):
-        return f''
+        return f'{self.product}'
 
 
 class OrderStatus(Entity):
