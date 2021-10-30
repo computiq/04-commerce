@@ -1,10 +1,11 @@
+import string
 from typing import List
 
 from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
 from pydantic import UUID4
 
-from commerce.models import Product, Merchant
+from commerce.models import Address, Product, Merchant
 
 
 class MessageOut(Schema):
@@ -78,6 +79,7 @@ class CitiesOut(CitySchema, UUIDSchema):
 
 class ItemSchema(Schema):
     # user:
+    id : UUID4
     product: ProductOut
     item_qty: int
     ordered: bool
@@ -90,3 +92,37 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+#-----------------------------------------------
+
+
+class OrderStatusOut(UUIDSchema):
+    title : str
+    
+
+
+class OrderOut(UUIDSchema) :
+    total  : int = None
+    note : str = None
+    ordered : bool
+    items : List[ItemSchema]
+    ref_code : str = None
+
+
+class AddressOut(UUIDSchema):
+    id : UUID4
+    work_address : bool = None
+    address1 : str 
+    address2 : str = None
+    phone : str 
+
+
+class AddressIn(Schema):
+    work_address : bool
+    address1 : str
+    address2 : str  
+    phone : str
+
+
+    
+
