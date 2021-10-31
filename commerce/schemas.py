@@ -107,3 +107,13 @@ class OrderIn(Schema):
     ref_code: str
     items: List[UUID4]
 
+class Checkout(Schema):
+    address: List[AddressOut]
+    total: str
+    note: str
+    ref_code: str
+    ordered: bool
+
+class Checkin(Schema):
+    address: UUID4
+    note: str
