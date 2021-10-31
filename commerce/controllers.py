@@ -3,13 +3,14 @@ import string
 from typing import List
 
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus, Address
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, \
+    AddressSchema, AddressCreate, AddressOut, CheckoutSchema
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -111,16 +112,62 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+# address CRUD operations endpoints are here!
+# ----
+@address_controller.get('', response={
+    200: List[AddressSchema],
+    404: MessageOut
+})
 def list_addresses(request):
-    pass
+    user_addresses = Address.objects.filter(user=User.objects.first())
+    return user_addresses
 
 
+@address_controller.get('/{id}', response={
+    200: AddressOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('', response={
+    201: AddressOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressCreate):
+    address = Address(**address_in.dict(), user=User.objects.first())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('/{id}', response={
+    200: MessageOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressCreate):
+    updated = Address.objects.all().filter(id=id, user=User.objects.first()).update(**address_in.dict())
+    if updated:
+        return 200, {"detail": "updated successfully"}
+    return 400, {"detail": "No address found"}
+
+
+@address_controller.delete("/{id}", response={
+    204: MessageOut,
+    404: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {"detail": ""}
+
+
+# ----
 # @products_controller.get('categories', response=List[CategoryOut])
 # def list_categories(request):
 #     return Category.objects.all()
 
-
+# cities endpoints are here
 @address_controller.get('cities', response={
     200: List[CitiesOut],
     404: MessageOut
@@ -224,11 +271,26 @@ def delete_item(request, id: UUID4):
     return 204, {'detail': 'Item deleted!'}
 
 
+@order_controller.put("item/{id}/increase-quantity", response={
+    200: MessageOut,
+    404: MessageOut
+})
+def increase_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+    return 200, {"detail": f"Item increased from {item.item_qty - 1} to {item.item_qty} successfully."}
+
+
 def generate_ref_code():
     return ''.join(random.sample(string.ascii_letters + string.digits, 6))
 
 
-@order_controller.post('create-order', response=MessageOut)
+@order_controller.post('create-order', response={
+    201: MessageOut,
+    400: MessageOut,
+    403: MessageOut
+})
 def create_order(request):
     '''
     * add items and mark (ordered) field as True
@@ -236,19 +298,63 @@ def create_order(request):
     * add NEW status
     * calculate the total
     '''
+    # First, checks whether there are items in the cart (items that are not ordered)
+    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+    if not user_items:
+        return 400, {'detail': 'Can not create an order of an empty cart.'}
 
+    '''
+    Secondly, checks if there are already an active order.
+    If True, add the items then merge the duplicates
+    Else, make a new active order
+    '''
+    order = Order.objects.filter(user=User.objects.first(), ordered=False)[0]
+    if order:
+        ordered_products_id = list(Item.objects.filter(ordered=True).values('product_id'))
+        ordered_products_id = list(map(lambda x: x['product_id'], ordered_products_id))
+        for item in user_items:
+            if item.product_id in ordered_products_id:
+                ordered_item = Item.objects.filter(product_id=item.product_id)[0]
+                ordered_item.item_qty += item.item_qty
+                ordered_item.save()
+                item.delete()
+            else:
+                order.items.add(item)
+        # calculate the total
+        order.total = order.order_total
+        # mark items as ordered (added to a user order)
+        user_items.update(ordered=True)
+        order.save()
+
+        return 201, {"detail": "There was already an order and your cart items were merged."}
+
+    # New order
+    # Create an order query set and we'll initially use 4 out of 8 attributes in an order
     order_qs = Order.objects.create(
         user=User.objects.first(),
-        status=OrderStatus.objects.get(is_default=True),
+        status=OrderStatus.objects.get(is_default=True),  # Which is 'NEW'
         ref_code=generate_ref_code(),
         ordered=False,
     )
-
-    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
-
+    # add them to the order
     order_qs.items.add(*user_items)
+    # calculate the total
     order_qs.total = order_qs.order_total
+    # mark items as ordered (added to a user order)
     user_items.update(ordered=True)
     order_qs.save()
 
-    return {'detail': 'order created successfully'}
+    return 201, {'detail': 'order created successfully'}
+
+
+@order_controller.post("checkout", response={
+    200: MessageOut,
+    404: MessageOut
+})
+def checkout(request, checkout_data_in: CheckoutSchema):
+    current_order = Order.objects.filter(user=User.objects.first()).filter(ordered=False)
+    if current_order:
+        processing = OrderStatus.objects.get(title='PROCESSING')  # proccessing must be added
+        current_order.update(**checkout_data_in.dict(), status=processing.id, ordered=True)
+        return 200, {'detail': 'Checkout was successful'}
+    return 404, {"detail": "No current order found"}
