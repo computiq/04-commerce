@@ -82,7 +82,8 @@ class Item(Entity):
     ordered = models.BooleanField('ordered', default=False)
 
     def __str__(self):
-        return self.product.name
+        return f'{self.item_qty}'
+
 
 
 class OrderStatus(Entity):
