@@ -8,8 +8,8 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus , Address
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate , AddressOut, Address_Schema, Checkout
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -224,26 +224,76 @@ def delete_item(request, id: UUID4):
     return 204, {'detail': 'Item deleted!'}
 
 
+#____________addresses _______________________
+
+@address_controller.get('', response={
+    200: List[AddressOut],
+    404: MessageOut
+})
+def list_cities(request):
+    address = Address.objects.all()
+
+    if address:
+        return address
+
+    return 404, {'detail': 'No addresses found'}
+
+
+@address_controller.get('{id}', response={
+    200: AddressOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('', response={
+    201: AddressOut,
+    400: MessageOut
+})
+def create_address(request, address_in: Address_Schema):
+    address = Address(**address_in.dict())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('{id}', response={
+    200: AddressOut,
+    400: MessageOut
+})
+def update_city(request, id: UUID4, address_in: Address_Schema):
+    address = get_object_or_404(Address, id=id)
+    address.work_address = address_in.work_address
+    address.address1 = address_in.address1
+    address.address2 = address_in.address2
+    address.city = address_in.city_id
+    address.phone = address_in.phone
+    address.save()
+    return 200,address
+
+
+@address_controller.delete('{id}', response={
+    200: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': ' address deleted successfully ! '}
+
+#_______________ create order _____________
+
 def generate_ref_code():
     return ''.join(random.sample(string.ascii_letters + string.digits, 6))
 
 
-@order_controller.post('create-order', response=MessageOut)
+@order_controller.post('create', response=MessageOut)
 def create_order(request):
-    '''
-    * add items and mark (ordered) field as True
-    * add ref_number
-    * add NEW status
-    * calculate the total
-    '''
-
     order_qs = Order.objects.create(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
         ref_code=generate_ref_code(),
         ordered=False,
     )
-
     user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
 
     order_qs.items.add(*user_items)
@@ -252,3 +302,52 @@ def create_order(request):
     order_qs.save()
 
     return {'detail': 'order created successfully'}
+
+@order_controller.post('item/{id}/reduce-quantity', response={
+    200: MessageOut,
+})
+def reduce_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    if item.item_qty <= 1:
+        item.delete()
+        return 200, {'detail': 'Item deleted!'}
+    item.item_qty -= 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity reduced successfully!'}
+#____________ increase item quantity ___________________
+
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+@order_controller.delete('item/{id}', response={
+    204: MessageOut
+})
+def delete_item(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.delete()
+
+    return 204, {'detail': 'Item deleted!'}
+
+#_________________ checkout __________________________________________
+@order_controller.post('checkout', response={
+    200: MessageOut,
+    404: MessageOut
+})
+def checkout(request, checkout: Checkout):
+    order_checkout = Order.objects.filter(user=User.objects.first(), ordered=False)
+    if order_checkout:
+        order_checkout.note = checkout.note
+        order_checkout.address = Address.objects.get(id=checkout.address)
+        order_checkout.status = OrderStatus.objects.update(is_default=False , OrderStatus = 'PROCESSING')
+        order_checkout.ordered = True
+        order_checkout.save()
+        return 200, {'detail': 'checkout created succeessfully !'}
+    return 404, {'detail': 'No Orders found'}
