@@ -1,3 +1,5 @@
+import random
+import string
 from typing import List
 
 from django.contrib.auth.models import User
@@ -6,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
 from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
@@ -220,3 +222,38 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+def generate_ref_code():
+    return  ''.join(random.sample(string.ascii_letters+string.digits,6))
+
+@order_controller.post('create-order' , response=MessageOut )
+def create_order(request):
+    order_qs = Order(
+        User=User .objects.first(),
+        Status=OrderStatus.objects.get(is_defult=True),
+        ref_code=generate_ref_code(),
+        ordered=False,
+    )
+
+    User_itmes = Item.objects.filter(User=User.objects.first())
+    User_itmes.update(ordered=True)
+    order_qs.items.append(*User_itmes)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+    return {'detail': 'order created successfully'}
+
+
+@order_controller.post('create-checkout-order', response=MessageOut)
+def create_checkout_order(request):
+    order_qs = Order(
+        User=User .objects.first(),
+        Status=OrderStatus.objects.get(is_defult=False),
+        ref_code=generate_ref_code(),
+        ordered=True,
+    )
+    User_itmes = Item.objects.filter(User=User.objects.first())
+    User_itmes.update(ordered=False)
+    order_qs.items.append(*User_itmes)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+    return {'detail': 'order created checkout successfully'}
+
