@@ -1,13 +1,11 @@
 from typing import List
-import random
-import string
-
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
-
+import random
+import string
 from commerce.models import Address, Order, OrderStatus, Product, City, Vendor, Item
 from commerce.schemas import AdressOut, CreateAdress, MessageOut, OrderOut, OrderShemaCreat, ProductOut, CitiesOut, \
     CitySchema, VendorOut, ItemOut, ItemCreate
@@ -19,11 +17,13 @@ order_controller = Router(tags=['orders'])
 checkout_controller = Router(tags=['checkout'])
 
 
+# ----------------------------------------------
 @vendor_controller.get('', response=List[VendorOut])
 def list_vendors(request):
     return Vendor.objects.all()
 
 
+# ----------------------------------------------
 @products_controller.get('', response={
     200: List[ProductOut],
     404: MessageOut
@@ -55,6 +55,8 @@ def list_products(
 
     return products_qs
 
+
+# ----------------------------------------------
 
 """
 # product = Product.objects.all().select_related('merchant', 'category', 'vendor', 'label')
@@ -102,6 +104,7 @@ finish the addresses CRUD operations
 """
 
 
+# ----------------------------------------------
 @address_controller.get('', response={
     200: List[AdressOut],
     404: MessageOut
@@ -200,6 +203,8 @@ def delete_city(request, id: UUID4):
     return 204, {'detail': 'city Has been Ddeleted successfully'}
 
 
+# ----------------------------------------------
+
 @order_controller.get('cart', response={
     200: List[ItemOut],
     404: MessageOut
@@ -252,6 +257,7 @@ def delete_item(request, id: UUID4):
     return 200, {'detail': 'Item deleted!'}
 
 
+# ----------------------------------------------
 """
 receives the item id and increase the quantity accordingly
 /api/orders/item/{id}/increase-quantity
