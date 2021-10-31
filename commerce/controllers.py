@@ -8,13 +8,16 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus,Address
+from commerce.schemas import (MessageOut, ProductOut, CitiesOut,
+                             CitySchema, VendorOut, ItemOut, 
+                             ItemSchema, ItemCreate)
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+checkout_controller = Router(tags=['checkout'])
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -228,6 +231,12 @@ def generate_ref_code():
     return ''.join(random.sample(string.ascii_letters + string.digits, 6))
 
 
+
+
+
+
+#----------------------- Create Order ------------------------------------------
+#------------------------------------------------------------------------
 @order_controller.post('create-order', response=MessageOut)
 def create_order(request):
     '''
@@ -236,7 +245,7 @@ def create_order(request):
     * add NEW status
     * calculate the total
     '''
-
+    
     order_qs = Order(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
@@ -246,9 +255,52 @@ def create_order(request):
 
     user_items = Item.objects.filter(user=User.objects.first(), ordered=False)
     user_items.update(ordered=True)
-
-    order_qs.items.append(*user_items)
+    
+    
+    order_qs.items.add(*user_items)
     order_qs.total = order_qs.order_total
+    user_items.update(ordered=True)
     order_qs.save()
 
     return {'detail': 'order created successfully'}
+
+
+
+
+
+
+
+
+
+#---------------------------- CheckOut --------------------------------
+#----------------------------------------------------------------------
+
+
+@checkout_controller.post('create-checkout', response=
+{ 200: MessageOut})
+
+def create_checkout(request,id:UUID4,note:str=None):
+    '''
+    * create the checkout endpoint
+  * you should be able to add an optional note
+  * you should be able to add an address to the order
+  * set (ordered field) to True, thus the order becomes sealed
+  * change order status accordingly
+   checkoutCreate
+    '''
+
+    if get_object_or_404(City, id=id):
+        check_order=Order(
+            user=User.objects.first(),
+            status=OrderStatus.objects.get(title='SHIPPED'),
+        )
+        check_order.note=note
+        check_order.ordered=True
+        check_order.save()
+        return {'detail': ' checkout created successfully'}
+    else:
+        return MessageOut
+
+    
+    
+   
