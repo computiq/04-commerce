@@ -1,18 +1,22 @@
 from typing import List
+import string
+import random
 
 from django.contrib.auth.models import User
 from django.db.models import Q
+from django.db.models.fields import DateField
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Order, OrderStatus, Product, Category, City, Vendor, Item
+from commerce.schemas import AddressSchema, AddressesCreate, AddressesOut, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+check_controller = Router(tags=['checkout'])
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -58,7 +62,6 @@ def list_products(
     # print(product)
     #
     # order = Product.objects.all().select_related('address', 'user').prefetch_related('items')
-
     # try:
     #     one_product = Product.objects.get(id='8d3dd0f1-2910-457c-89e3-1b0ed6aa720a')
     # except Product.DoesNotExist:
@@ -67,45 +70,31 @@ def list_products(
     #
     # shortcut_function = get_object_or_404(Product, id='8d3dd0f1-2910-457c-89e3-1b0ed6aa720a')
     # print(shortcut_function)
-
     # print(type(product))
     # print(product.merchant.name)
     # print(type(product.merchant))
     # print(type(product.category))
-
-
 Product <- Merchant, Label, Category, Vendor
-
 Retrieve 1000 Products form DB
-
 products = Product.objects.all()[:1000] (select * from product limit 1000)
-
 for p in products:
     print(p)
     
 for every product, we retrieve (Merchant, Label, Category, Vendor) records
-
 Merchant.objects.get(id=p.merchant_id) (select * from merchant where id = 'p.merchant_id')
 Label.objects.get(id=p.label_id) (select * from merchant where id = 'p.label_id')
 Category.objects.get(id=p.category_id) (select * from merchant where id = 'p.category_id')
 Vendor.objects.get(id=p.vendor_id) (select * from merchant where id = 'p.vendor_id')
-
 4*1000+1
-
 Solution: Eager loading
-
 products = (select * from product limit 1000)
-
 mids = [p1.merchant_id, p2.merchant_id, ...]
 [p1.label_id, p2.label_id, ...]
 .
 .
 .
-
 select * from merchant where id in (mids) * 4 for (label, category and vendor)
-
 4+1
-
 """
 
 
@@ -211,6 +200,25 @@ def reduce_item_quantity(request, id: UUID4):
 
     return 200, {'detail': 'Item quantity reduced successfully!'}
 
+  
+#------------------increase  -------------
+
+
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first(), ordered=False)
+    item.item_qty += 1
+    item.save()
+    return 200, {'detail': 'Item quantity increased successfully!'} 
+
+
+
+
+
+
+
 
 @order_controller.delete('item/{id}', response={
     204: MessageOut
@@ -220,3 +228,118 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+
+#--------------------creat order ------------------
+
+
+def generate_ref_code():
+    return ''.join(random.sample(string.ascii_letters+string.digits, 6))
+
+
+@order_controller.post('create_order', response={
+    200: MessageOut,
+    400: MessageOut
+})
+def create_order(request):
+    order_qs = Order(
+    user=User.objects.first,
+    status=OrderStatus.objects.get(is_defult=True),
+    ref_code=generate_ref_code(),
+    ordered=False,
+    )
+
+    user_items = Item.objects.filter(user=User.objects.first()),
+    user_items.update(ordered=True)
+    order_qs.items.add(*user_items)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+
+    return {'details': 'order created successfully'}
+
+
+#Bonus
+
+
+
+
+#-----------------------------addresses-------------------
+
+@address_controller.get('', response={
+    200: List[AddressesOut],
+    400: MessageOut
+})
+def list_addresses(request):
+    address_set = Address.objects.all()
+
+    if address_set:
+       return Address
+
+    return 400, {'detail': 'No addresses found'}
+
+
+@address_controller.get('{id}', response={
+    200: AddressesOut,
+    400: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('', response={
+    201: AddressesOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressesOut):
+     city_instance = City.objects.get(id=address_in.city)
+     del address_in.city
+     address = Address.objects.create(**address_in.dict(), city=city_instance, user=User.objects.first())
+     address.save()
+     return 201, address
+
+
+@address_controller.put('{id}', response={
+    200: AddressesOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressSchema):
+    address = get_object_or_404(Address, id=id)
+    for attr, value in address_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+    return 200, address
+
+
+@address_controller.delete('{id}', response={
+    200: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 200, {'detail': 'Address deleted successfully'}
+
+
+
+#--------------------------checkout---------------------------
+
+
+@check_controller.post('checkout', response={200: MessageOut, 400: MessageOut})
+def checkout(request, address_in: AddressesOut, city : str , note : str):
+    address_qs = Address(**address_in.dict(), user = User.objects.first(), city = UUID4)
+
+    address_qs.save()
+
+    try:
+        order = Order.objects.get(user=User.objects.first(), ordered=False)
+
+    except Order.DoesNotExist:
+        return 400 ,{'detail': 'Not Found Any Order'}
+
+    if note : 
+      order.note = note
+      order.ordered = True
+      order.address = address_qs
+      order.status = OrderStatus 
+      order.save()
+
+    return 200, {'detail': 'Checkout Created successfully'}
