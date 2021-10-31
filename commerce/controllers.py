@@ -8,7 +8,10 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.schemas import AddressIn, AddressOut, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, \
+    ItemSchema, ItemCreate, OrderIn, Checkout , Checkin
+
+from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus, Address
 from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
@@ -20,6 +23,11 @@ order_controller = Router(tags=['orders'])
 @vendor_controller.get('', response=List[VendorOut])
 def list_vendors(request):
     return Vendor.objects.all()
+
+
+@vendor_controller.get('users')
+def list_users(request):
+    return list(User.objects.all().values())
 
 
 @products_controller.get('', response={
@@ -111,9 +119,38 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+# get all addresses
+@address_controller.get('alladdress')
 def list_addresses(request):
-    pass
+    return list(Address.objects.filter(user=User.objects.first()).select_related('city').values())
+
+
+# get 1 address
+@address_controller.get('address/{id}', response={200: AddressOut, 404: MessageOut})
+def list_addresses(request, id: UUID4):
+    address = get_object_or_404(Address, id=id, user=User.objects.first())
+    if address:
+        return address
+    return 404, {"address not found"}
+
+
+# post new address
+@address_controller.post('addresspost', response={201: MessageOut, 400: MessageOut})
+def post_address(request, payload: AddressIn):
+    address = Address.objects.create(**payload.dict(), user=User.objects.first())
+    if address:
+        return 201, {"detail": "address have been created"}
+    return 400, {"something wrong happened"}
+
+
+# update address
+@address_controller.put('addressupdate/{id}', response={200: AddressOut, 404: MessageOut})
+def update_address(request, payload: AddressIn, id: UUID4):
+    address = Address.objects.filter(id=id, user=User.objects.first()).update(**payload.dict())
+    if address:
+        address_show = Address.objects.get(id=id, user=User.objects.first())
+        return address_show
+    return 400, {"detail": "oops something wrong happened"}
 
 
 # @products_controller.get('categories', response=List[CategoryOut])
@@ -178,7 +215,6 @@ def delete_city(request, id: UUID4):
 })
 def view_cart(request):
     cart_items = Item.objects.filter(user=User.objects.first(), ordered=False)
-
     if cart_items:
         return cart_items
 
@@ -191,8 +227,8 @@ def view_cart(request):
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
-        item.item_qty += 1
+        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first(), ordered = False)
+        item.item_qty += item_in.item_qty
         item.save()
     except Item.DoesNotExist:
         Item.objects.create(**item_in.dict(), user=User.objects.first())
@@ -214,6 +250,15 @@ def reduce_item_quantity(request, id: UUID4):
     return 200, {'detail': 'Item quantity reduced successfully!'}
 
 
+@order_controller.post('item/{id}/increase-quantity', response={200: MessageOut, 400: MessageOut})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    product = get_object_or_404(Product, id=id)
+    item.item_qty += 1
+    item.save()
+    return 200, {"detail": "item quantity increased successfully"}
+
+
 @order_controller.delete('item/{id}', response={
     204: MessageOut
 })
@@ -222,6 +267,7 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
 
 
 def generate_ref_code():
@@ -236,19 +282,41 @@ def create_order(request):
     * add NEW status
     * calculate the total
     '''
-
-    order_qs = Order.objects.create(
-        user=User.objects.first(),
-        status=OrderStatus.objects.get(is_default=True),
-        ref_code=generate_ref_code(),
-        ordered=False,
-    )
-
+    try:
+        order_qs = Order.objects.get(user = User.objects.first(), ordered= False)
+        items_checked = Item.objects.filter(ordered= True , user = User.objects.first(), order__ordered= False)
+        if items_checked:
+            for i in items_checked:
+                try:
+                    items_unchecked = Item.objects.get(ordered= False , product__id= i.product.id , user = User.objects.first())
+                    if items_unchecked:
+                        i.item_qty += items_unchecked.item_qty
+                        i.save()
+                        items_unchecked.delete()
+                except Item.DoesNotExist:
+                    continue
+    except Order.DoesNotExist:
+        order_qs = Order.objects.create(
+            user=User.objects.first(),
+            status=OrderStatus.objects.get(is_default=True),
+            ref_code=generate_ref_code(),
+            ordered=False,
+            )
     user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
-
-    order_qs.items.add(*user_items)
+    if user_items:
+        order_qs.items.add(*user_items)
+        user_items.update(ordered=True)
+        user_items.delete()
     order_qs.total = order_qs.order_total
-    user_items.update(ordered=True)
     order_qs.save()
 
     return {'detail': 'order created successfully'}
+
+
+@order_controller.post('checkout', response={200: MessageOut , 404: MessageOut})
+def checkout_order(request, payload: Checkin):
+    status = OrderStatus.objects.get(title="COMPLETED")
+    order_qs = Order.objects.filter(user=User.objects.first(), status__is_default=True , ordered = False).update(**payload.dict(), ordered = True , status = status)
+    if order_qs:
+        return 200, {"detail":"checkout process finished successfully"}
+    return 404, {"detail": "create order first"}
