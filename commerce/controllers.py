@@ -3,7 +3,7 @@ import string
 from typing import List
 
 from django.contrib.auth.models import User
-from django.db.models import Q, Sum
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
