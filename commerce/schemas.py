@@ -90,3 +90,32 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+
+class AddressSchema(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    city: UUID4
+    phone: int
+
+
+# i'll edit this soon #
+
+# class AddressUpdate(Schema):
+#     work_address: bool
+#     address1: str
+#     address2: str
+#     city: CitySchema
+#     phone: int
+
+
+class AddressOut(AddressSchema, UUIDSchema):
+    city: CitiesOut
+
+
+class CheckoutSchema(Schema):
+    note: str = None
+    address: UUID4
+
+
