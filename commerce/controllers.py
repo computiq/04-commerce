@@ -1,18 +1,22 @@
 from typing import List
-
+from uuid import uuid4
+from typing import List
+import string
+import random
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import tree
 from ninja import Router
 from pydantic import UUID4
-
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Order, OrderStatus, Product, Category, City, Vendor, Item
+from commerce.schemas import CheckoutSchema, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, AddressOut
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+checkout_controller = Router(tags=['checkout'])
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -31,7 +35,8 @@ def list_products(
         price_to: int = None,
         vendor=None,
 ):
-    products_qs = Product.objects.filter(is_active=True).select_related('merchant', 'vendor', 'category', 'label')
+    products_qs = Product.objects.filter(is_active=True).select_related(
+        'merchant', 'vendor', 'category', 'label')
 
     if not products_qs:
         return 404, {'detail': 'No products found'}
@@ -109,9 +114,9 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@address_controller.get('', response=List[AddressOut])
 def list_addresses(request):
-    pass
+    return Address.objects.all()
 
 
 # @products_controller.get('categories', response=List[CategoryOut])
@@ -189,7 +194,8 @@ def view_cart(request):
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
+        item = Item.objects.get(
+            product_id=item_in.product_id, user=User.objects.first())
         item.item_qty += 1
         item.save()
     except Item.DoesNotExist:
@@ -220,3 +226,53 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+    @order_controller.post('item/{id}/increase_quantity', response={
+        200: MessageOut
+    })
+    @order_controller.post()
+    def increase_item_quantity(request, id: uuid4):
+        item = get_object_or_404(Item, id=id, User=User.objects.first())
+        if item.item_qty > 1:
+            item.update()
+            return 200, {'detail': 'Item added'}
+            item.item_qty += 1
+            item.save()
+            return 200, {'detail', 'Item auantity increase successfully'}
+
+
+def generate_ref_code():
+    return ''.join(random.sample(string.ascii_letters+string.digits, 6))
+
+
+@order_controller.post('create_order')
+def create_order(request):
+    order_qs = Order(
+        user=User.objects.first(),
+        status=OrderStatus.objects.get(is_default=True),
+        ref_code=generate_ref_code(),
+        ordered=False,
+    )
+
+    user_items = Item.objects.filter(user=User.objects.first())
+    user_items.update(ordered=True)
+    order_qs.items.append(*user_items)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+    return {'detail': 'thanks the order created successfuly'}
+
+
+@checkout_controller.post('checkout_note', response={
+    200: List[CheckoutSchema],
+    404: MessageOut
+})
+def List_checkout(
+    request, *,
+        q: str = None,
+):
+    checkout_qs = Item.objects.filter(user=User.objects.first(), ordered=False)
+
+    if checkout_qs:
+        return checkout_qs
+
+    return 404, {'detail': 'checkout please '}

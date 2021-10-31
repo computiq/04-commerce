@@ -1,10 +1,9 @@
 from typing import List
-
 from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
 from pydantic import UUID4
-
-from commerce.models import Product, Merchant
+from pydantic.schema import model_schema
+from commerce.models import City, Product, Merchant, Address
 
 
 class MessageOut(Schema):
@@ -42,6 +41,13 @@ class CategoryOut(UUIDSchema):
 CategoryOut.update_forward_refs()
 
 
+class AddressOut(ModelSchema):
+    address1: str
+    address2: str
+    City: str
+    phone: str
+
+
 class ProductOut(ModelSchema):
     vendor: VendorOut
     label: LabelOut
@@ -66,6 +72,9 @@ class ProductOut(ModelSchema):
 
 # class ProductManualSchemaOut(Schema):
 #     pass
+
+class CheckoutSchema(Schema):
+    note: str
 
 
 class CitySchema(Schema):
