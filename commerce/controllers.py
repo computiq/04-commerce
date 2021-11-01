@@ -66,8 +66,15 @@ def list_addresses(request):
     if address:
         return address
     else:
-        return 404, {'detal': 'error'}
+        return 404, {'detail': 'error'}
 
+
+@address_controller.get('address/{id}', response={
+    200: AddressesOut,
+    404: MessageOut
+})
+def address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
 
 @address_controller.post('adrress', response={
     201: AddressSchemaOut,
