@@ -90,3 +90,19 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class Orderstatusschema(Schema):
+    title:      str
+    is_default: bool
+
+class Addressout(Schema):
+    address1: str
+    phone: str
+    city_id: UUID4
+    work_address: bool
+    address2: str = None
+
+class Addresslist(Addressout, UUIDSchema):
+    user_id: str
+class OrderStatus(Schema):
+    title: str

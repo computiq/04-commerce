@@ -1,18 +1,19 @@
 from typing import List
-
+import random, string
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import OrderStatus, Product, Category, City, Vendor, Item, Address, Order
+from commerce.schemas import Addresslist, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut,  ItemCreate, Addressout, CategoryOut
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+task4_controller = Router(tags=['Task4'])
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -114,9 +115,9 @@ def list_addresses(request):
     pass
 
 
-# @products_controller.get('categories', response=List[CategoryOut])
-# def list_categories(request):
-#     return Category.objects.all()
+@products_controller.get('categories', response=List[CategoryOut])
+def list_categories(request):
+    return Category.objects.all()
 
 
 @address_controller.get('cities', response={
@@ -220,3 +221,68 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+@task4_controller.post('item/{id}', response={
+    200: MessageOut
+})
+def increase_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+@task4_controller.get('', response= {
+    200: List[Addresslist],
+    404: MessageOut,})
+def list_addresses(request):
+    address_qs = Address.objects.all()
+    if address_qs:
+     return 200, address_qs
+
+    return 404, {'detail': 'No addresses found'}
+
+@task4_controller.post("add address", response={
+    201: Addressout,
+    400: MessageOut
+})
+def add_address(request, address_in: Addressout):
+    address = Address(**address_in.dict(), user= User.objects.first())
+    address.save()
+    return 201, address
+
+@task4_controller.delete('{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': ''}
+
+@task4_controller.put('Update Address/{id}', response={
+    200: Addressout,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: Addressout):
+    address = get_object_or_404(Address, id=id)
+    for attr, value in address_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+    return 200, address
+
+def gen_ref_code():
+    return ''.join(random.sample(string.ascii_letters+string.digits,6))
+
+@task4_controller.post('Create Order',response=MessageOut)
+def create_order(request):
+    order_qs = Order(
+        user=User.objects.first(),
+        status=OrderStatus.objects.get(is_default = True),
+        ref_code = gen_ref_code(),
+        ordered = False,
+    )
+    user_items = Item.objects.filter(user=User.objects.first())
+    user_items.update(ordered=True)
+    order_qs.items.append(*user_items)
+    order_qs.total=order_qs.order_total
+    order_qs.save()
+    return {'detail':'order created'}
