@@ -139,14 +139,6 @@ def retrieve_address(request, id: UUID4):
     400: MessageOut
 })
 def create_address(request, address_in: AddressPut):
-    # address = Address
-    # address = address_in
-    # address.city = City.objects.create(name=address_in.city)
-    # address.address1 = address_in.address1
-    # address.address2 = address_in.address2
-    # address.phone = address_in.phone
-    # address.work_address = address_in.work_address
-    
     adress = Address(**address_in.dict(), user=User.objects.first())
     adress.save()
     return 200, adress
