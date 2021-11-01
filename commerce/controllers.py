@@ -192,7 +192,7 @@ def view_cart(request):
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
+        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first(),ordered = False)
         item.item_qty += 1
         item.save()
     except Item.DoesNotExist:
@@ -205,7 +205,7 @@ def add_update_cart(request, item_in: ItemCreate):
     200: MessageOut,
 })
 def reduce_item_quantity(request, id: UUID4):
-    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item = get_object_or_404(Item, id=id, user=User.objects.first(),ordered = False)
     if item.item_qty <= 1:
         item.delete()
         return 200, {'detail': 'Item deleted!'}
@@ -219,7 +219,7 @@ def reduce_item_quantity(request, id: UUID4):
     204: MessageOut
 })
 def delete_item(request, id: UUID4):
-    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item = get_object_or_404(Item, id=id, user=User.objects.first(),ordered = False)
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
@@ -234,7 +234,7 @@ def delete_item(request, id: UUID4):
 # first =>  endpoint to  receives the item id and increase the quantity accordingly
 @order_controller.post('/item/{id}/increase-quantity', response={200: MessageOut,})
 def increase_item_quantity(request, id: UUID4):
-    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item = get_object_or_404(Item, id=id, user=User.objects.first(),ordered = False)
     item.item_qty += 1
     item.save()
     return 200, {'detail': 'item increased successfully'}
@@ -259,23 +259,23 @@ def create_update_order(request):
     if order_qs.exists():
         order = order_qs.first()
         # add items to the order
-        for i in items_qs :            
-            i.ordered = True
-            i.save()   
+        for i in items_qs : 
+            for j in items_qs_true:
+                if i.product.id == j.product.id :
+                    j.item_qty += i.item_qty
+                    j.save()
+                    i.delete()
+                    items_qs.update()
+                else :           
+                    i.ordered = True
+                    i.save()   
         order.items.add(*items_qs)
         order.save()
         return 200, {"detail": "Order Updated Successfully"}
     else:
         for i in items_qs :
-            for j in items_qs_true:
-                if i.product.id == j.product.id and j.order.first().status.title == "NEW" :
-                    i.item_qty += j.item_qty
-                    i.save()
-                    j.delete()
-                    items_qs_true.update()
-                else :
-                    i.ordered = True
-                    i.save()
+            i.ordered = True
+            i.save()
         order = Order.objects.create(user=User.objects.first(),status = get_status,ref_code =ref_code,ordered = False)
         order.items.add(*items_qs)
         order.save()
@@ -299,7 +299,7 @@ def create_address(request, address_in: AddressIn,city_id : UUID4):
 
 # update address 
 @address_controller.put('/update_address/{id}', response={200: AddressOut,400: MessageOut})
-def update_ddress(request, id: UUID4, address_in: AddressIn):
+def update_address(request, id: UUID4, address_in: AddressIn):
     address = get_object_or_404(Address, id=id)
     for attr, value in address_in.dict().items():
         setattr(address, attr, value)
@@ -349,7 +349,7 @@ def checkout(request, address_in: AddressIn, city_name : str, note : str = None)
     if note : 
         checkout.note = note
 
-
+    checkout.status = OrderStatus.objects.get(title = "PROCESSING")
     checkout.total = checkout.order_total
     checkout.ordered = True
     checkout.address = address_qs
