@@ -13,6 +13,7 @@ products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+#Nothing to do
 
 
 @vendor_controller.get('', response=List[VendorOut])
