@@ -53,7 +53,7 @@ class Order(Entity):
     address = models.ForeignKey('commerce.Address', verbose_name='address', null=True, blank=True,
                                 on_delete=models.CASCADE)
     total = models.DecimalField('total', blank=True, null=True, max_digits=1000, decimal_places=0)
-    status = models.ForeignKey('commerce.OrderStatus', verbose_name='status', related_name='orders',
+    status = models.ForeignKey('commerce.OrderStatus',null=True, verbose_name='status', related_name='orders',
                                on_delete=models.CASCADE)
     note = models.CharField('note', null=True, blank=True, max_length=255)
     ref_code = models.CharField('ref code', max_length=255)

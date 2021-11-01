@@ -1,16 +1,18 @@
 from typing import List
-
+from uuid import uuid4
+from django.utils.crypto import get_random_string
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Order, OrderStatus, Product, Category, City, Vendor, Item
+from commerce.schemas import AddressSchema, Addressesout, AddressSchema, Addressesout, CheckoutSchema, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
+add_controller = Router(tags=['add'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
 
@@ -109,9 +111,54 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@address_controller.get('addresses', response={
+    200: List[Addressesout],
+    404: MessageOut
+})
 def list_addresses(request):
-    pass
+    addresses_qs = Address.objects.all()
+
+    if addresses_qs:
+        return addresses_qs
+
+    return 404, {'detail': 'No addresses found'}
+
+@address_controller.get('addresses/{id}', response={
+    200: Addressesout,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('addresses', response={
+    201: Addressesout,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressSchema):
+    address = Address(**address_in.dict())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('addresses/{id}', response={
+    200: Addressesout,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressSchema):
+    address = get_object_or_404(Address, id=id)
+    address.name = address_in.name
+    address.save()
+    return 200, address
+
+
+@address_controller.delete('addresses/{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    adress = get_object_or_404(Address, id=id)
+    adress.delete()
+    return 204, {'detail': ''}
 
 
 # @products_controller.get('categories', response=List[CategoryOut])
@@ -220,3 +267,46 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+    
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+@order_controller.post('create order',response={
+    200:MessageOut
+})
+def create_order(request):
+    order_qs=Order(
+    user=User.objects.first(),
+    status=OrderStatus.objects.get(is_default=True),
+    ref_code=get_random_string(length=6),
+    ordered=False,
+    )
+    user_items=Item.objects.filter(user=User.objects.first(),ordered=False)
+    user_items.update(ordered=True)
+    order_qs.items.add(*user_items)
+    order_qs.total=order_qs.order_total
+    order_qs.save()
+    return{'detail':'order created'}
+@order_controller.post('checkout/creat', response={
+    201:MessageOut
+})
+def create_checkout(request,checkout_in:CheckoutSchema):
+    checkout=get_object_or_404(Order,ordered=False,user=User.objects.first())
+    # checkout = Order.objects.filter(user=User.objects.first(),ref_code=ref_code)
+    checkout.note=checkout_in.note
+    checkout.address_id=checkout_in.address_id
+    checkout.ordered=True
+    get_status=OrderStatus.objects.get(title='PROCESSING')
+    checkout.status=get_status
+
+    checkout.save()
+    return{'detail':'checkout created succesfully'}
+
+

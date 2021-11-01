@@ -1,4 +1,5 @@
 from typing import List
+from uuid import uuid4
 
 from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
@@ -90,3 +91,17 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class AddressSchema(Schema):
+    name:str
+
+
+class Addressesout(UUIDSchema):
+   # user:
+   address1: str
+   city:CitySchema
+   phone:str
+class CheckoutSchema(Schema):
+    #user
+    note:str
+    address_id:UUID4
