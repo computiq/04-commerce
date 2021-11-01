@@ -15,7 +15,7 @@ from pydantic import UUID4
 import random
 
 
-from commerce.models import Product, Category, City, Vendor, Item,Order,OrderStatus,Address
+from commerce.models import Product, Category, City, Vendor, Item,Order,Address
 
 from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
