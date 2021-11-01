@@ -4,7 +4,7 @@ from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
 from pydantic import UUID4
 
-from commerce.models import Product, Merchant
+from commerce.models import Product, Merchant, Address,City
 
 
 class MessageOut(Schema):
@@ -15,7 +15,6 @@ class UUIDSchema(Schema):
     id: UUID4
 
 
-# ProductSchemaOut = create_schema(Product, depth=2)
 
 class VendorOut(UUIDSchema):
     name: str
@@ -60,21 +59,63 @@ class ProductOut(ModelSchema):
                         'category',
                         'label',
                         'merchant',
-
                         ]
-
-
-# class ProductManualSchemaOut(Schema):
-#     pass
-
-
-class CitySchema(Schema):
+#
+#
+# class AddressOut(UUIDSchema):
+#     # city = CitiesOut
+#     class Config:
+#         model: Address
+#         model_fields = [
+#             'user',
+#             'work_address',
+#             'address1',
+#             'address2',
+#             'city',
+#             'phone'
+#         ]
+#
+#
+# class AddressSchema(Schema):
+#     user: UUID4
+#     work_address: bool
+#     address1: str
+#     address2: str
+#     city: CitySchemaOut
+#     phone: str
+#
+#
+class CitySchemaOut(Schema):
     name: str
 
 
-class CitiesOut(CitySchema, UUIDSchema):
-    pass
+class CityOut(CitySchemaOut, UUIDSchema):
+    class Config:
+        model = City
+        model_fields = ['name']
 
+#
+#
+
+
+class CitySchema(Schema):
+    city: str
+
+class AddressSchemaOut(Schema):
+    id: UUID4
+    work_address: bool
+    address1: str
+    address2: str
+    city: CitySchemaOut
+    phone: str
+
+
+class AddressCreateDataIn(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    city_id: UUID4
+    phone: int
 
 class ItemSchema(Schema):
     # user:
@@ -90,3 +131,7 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class CheckoutSchema(Schema):
+    note: str =None
+    addresss: UUID4
