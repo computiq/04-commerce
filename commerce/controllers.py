@@ -70,7 +70,7 @@ def list_addresses(request):
 
 
 @address_controller.get('address/{id}', response={
-    200: AddressesOut,
+    200: AddressSchemaOut,
     404: MessageOut
 })
 def address(request, id: UUID4):
