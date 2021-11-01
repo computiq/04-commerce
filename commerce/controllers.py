@@ -5,15 +5,15 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
+from commerce.utils import gen_ref_code
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import OrderStatus, Product, Category, City, Vendor, Item, Address, Order
+from commerce.schemas import OrderCheckout, AddressCreate, AddressOut, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
-
 
 @vendor_controller.get('', response=List[VendorOut])
 def list_vendors(request):
@@ -109,10 +109,15 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@address_controller.get('', response={
+    200: List[AddressOut],
+    404: MessageOut
+})
 def list_addresses(request):
-    pass
-
+    addresses = Address.objects.select_related('city','user').filter(user=User.objects.first())
+    if addresses:
+        return addresses
+    return 404, {'detail': 'No addresses found'}
 
 # @products_controller.get('categories', response=List[CategoryOut])
 # def list_categories(request):
@@ -185,16 +190,18 @@ def view_cart(request):
 
 @order_controller.post('add-to-cart', response={
     200: MessageOut,
-    # 400: MessageOut
+    400: MessageOut
 })
 def add_update_cart(request, item_in: ItemCreate):
     try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
-        item.item_qty += 1
+        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first(),ordered=False)
+        if item_in.item_qty > 0:
+            item.item_qty += item_in.item_qty
         item.save()
     except Item.DoesNotExist:
-        Item.objects.create(**item_in.dict(), user=User.objects.first())
-
+        if item_in.item_qty < 1:
+            return 400, {'detail': 'Quantity Value Must be Greter Than Zero'}
+        item = Item.objects.create(**item_in.dict(), user=User.objects.first())
     return 200, {'detail': 'Added to cart successfully'}
 
 
@@ -202,7 +209,7 @@ def add_update_cart(request, item_in: ItemCreate):
     200: MessageOut,
 })
 def reduce_item_quantity(request, id: UUID4):
-    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item = get_object_or_404(Item, id=id, user=User.objects.first(), ordered=False)
     if item.item_qty <= 1:
         item.delete()
         return 200, {'detail': 'Item deleted!'}
@@ -216,7 +223,107 @@ def reduce_item_quantity(request, id: UUID4):
     204: MessageOut
 })
 def delete_item(request, id: UUID4):
-    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item = get_object_or_404(Item, id=id, user=User.objects.first(), ordered=False)
     item.delete()
-
     return 204, {'detail': 'Item deleted!'}
+
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first(), ordered=False)
+    item.item_qty += 1
+    item.save()
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+@address_controller.get('{id}', response={
+    200: AddressOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id, user=User.objects.first())
+
+@address_controller.post('', response={
+    201: AddressOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressCreate):
+    return 201, Address.objects.create(**address_in.dict(), user= User.objects.first())
+
+@address_controller.put('{id}', response={
+    200: AddressOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4,  address_in: AddressCreate):
+    address = get_object_or_404(Address, id=id, user= User.objects.first())
+    for k,v in address_in.dict().items():
+        setattr(address, k, v)
+    address.save()
+    return 200, address
+
+@address_controller.delete('{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id, user = User.objects.first())
+    address.delete()
+    return 204, {'detail': ''}
+
+@order_controller.post('create', response={
+    200: MessageOut,
+    404: MessageOut
+})
+def create_update_order(request):
+    user = User.objects.prefetch_related('items','orders').first()
+    user_items = user.items.filter(user=user, ordered=False)
+    if not user_items:
+        return 404, {'detail': 'No Items Found To added to Order'}
+
+    try:
+
+        order = user.orders.prefetch_related('items').get(ordered=False)
+        list_of_productID_in_order = [item['product_id'] for item in order.items.values('product_id')]
+        list_of_difference_items = []
+        list_of_intersection_items = [(item,item.item_qty) if item.product_id in list_of_productID_in_order else list_of_difference_items.append(item.id) for item in user_items]
+        Item.objects.filter(id__in=list_of_difference_items).update(ordered=True)
+
+        for item,qty in list(filter(None,list_of_intersection_items)):
+            item_duplicated = order.items.get(product_id=item.product_id)
+            item_duplicated.item_qty = item_duplicated.item_qty + qty
+            item_duplicated.save()
+            item.delete()
+
+        order.items.add(*list_of_difference_items)
+        order.total = order.order_total
+        order.save()
+        return 200, {'detail':'order updated successfully!'}
+    except Order.DoesNotExist:
+        order_status, _ = OrderStatus.objects.get_or_create(title='NEW', is_default=True)
+        order = Order.objects.create(user=user, status=order_status, ref_code=gen_ref_code(6), ordered=False)
+        order.items.set(user_items)
+        order.total = order.order_total
+        user_items.update(ordered=True)
+        order.save()
+        return 200, {'detail':'Order Created Successfully!'}
+
+
+@order_controller.post('checkout', response={
+    200: MessageOut,
+    404: MessageOut,
+    400: MessageOut
+})
+def checkout_order(request, order_in: OrderCheckout):
+    order_status, _ = OrderStatus.objects.get_or_create(title='SHIPPED', is_default=False)
+    try:
+        order = Order.objects.get(user=User.objects.first(), ordered=False)
+    except Order.DoesNotExist:
+        return 404, {'detail':'Order Does\'nt Found'}
+    order.ordered = True
+    order.status = order_status
+    for k, v in order_in.dict().items():
+        setattr(order, k, v)
+    order.save()
+    return 200, {'detail':'checkout successfully!'}
+
+
+
