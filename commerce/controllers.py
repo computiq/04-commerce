@@ -413,6 +413,19 @@ def create_order(request):
     return{'detels':'suces'}
 
 
+@order_controller.post("checkout")
+def checkout(request,n:str):
+    checkout_qs=Item.objects.filter(user=User.objects.first()).filter(ordered=False)  
+    if  checkout_qs:
+        return checkout_qs
+    return{'detels':'filde'}   
+        
+    
+
+
+
+
+
   
 
 
