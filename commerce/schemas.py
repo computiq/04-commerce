@@ -4,7 +4,7 @@ from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
 from pydantic import UUID4
 
-from commerce.models import Product, Merchant
+from commerce.models import Address, Product, Merchant
 
 
 class MessageOut(Schema):
@@ -91,4 +91,26 @@ class ItemCreate(Schema):
 class ItemOut(UUIDSchema, ItemSchema):
     pass
 
+class UserOut(UUIDSchema):
+    username:str
+    last_name:str
+    email:str
+    is_staff:str
+    is_active:str
 
+
+class AddressSchema(Schema):
+    city_id:UUID4
+    work_address:bool
+    address1:str
+    address2:str
+    phone:str
+
+
+class AddressesOut(UUIDSchema , AddressSchema):
+    pass
+
+
+class CheckoutSchema(Schema):
+    note: str = None
+    address: UUID4
