@@ -68,8 +68,20 @@ class ProductOut(ModelSchema):
 #     pass
 
 
+class AddressSchema(Schema):
+    work_address: bool = False
+    address1: str
+    phone: str
+
 class CitySchema(Schema):
     name: str
+
+class CitiesOut(CitySchema, UUIDSchema):
+    pass
+
+
+class AddressesOut(AddressSchema, UUIDSchema):
+    city: CitiesOut
 
 
 class CitiesOut(CitySchema, UUIDSchema):
@@ -90,3 +102,28 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+
+
+
+class OrderStatusOut(Schema):
+    title: str
+
+
+class UserOut(Schema):
+    username: str
+
+class OrderSchema(Schema):
+    items: List[ItemSchema]
+    status: OrderStatusOut
+    address: AddressesOut
+    order_total: float
+    ordered: bool
+    user: UserOut
+    ref_code: str
+    note: str
+
+class OrderCreate(Schema):
+    items: List[UUID4]
+    address: UUID4
+    note: str
