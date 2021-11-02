@@ -1,22 +1,40 @@
-#!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
-import os
-import sys
+from os import name
+from typing import List
+from django.db import models
+
+from ninja import ModelSchema, Schema
+from ninja.orm import create_schema
+from pydantic import UUID4
+# from pydantic.main import Model
+
+from commerce.models import Address, OrderStatus, Product, Merchant
 
 
-def main():
-    """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-    try:
-        from django.core.management import execute_from_command_line
-    except ImportError as exc:
-        raise ImportError(
-            "Couldn't import Django. Are you sure it's installed and "
-            "available on your PYTHONPATH environment variable? Did you "
-            "forget to activate a virtual environment?"
-        ) from exc
-    execute_from_command_line(sys.argv)
+class MessageOut(Schema):
+ class CategoryOut(UUIDSchema):
+    children: List['CategoryOut'] = None
 
 
-if __name__ == '__main__':
-    main()
+CategoryOut.update_forward_refs()  
+
+
+class ProductOut(ModelSchema):
+class ItemOut(UUIDSchema, ItemSchema):
+    pass
+
+
+class AddressSchema(Schema):
+    work_address:str
+    address1:str
+    address2:str
+    phone:str
+    city_id:UUID4
+
+class addressOut(AddressSchema):
+     pass
+
+
+class OrderSchema(Schema):
+
+    note:str
+    address:addressOut
