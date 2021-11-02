@@ -260,7 +260,7 @@ def create_order(request):
         return 200, {'detail': 'created successfully '}
 
     else:
-        
+        order = Order.objects.filter(user=User.objects.first(), ordered=False)
         order_items = Order.objects.filter(user=User.objects.first(), ordered=False).values('items__product__id',
                                                                                             'items__item_qty', 
                                                                                             'items__product__discounted_price')
@@ -271,12 +271,13 @@ def create_order(request):
                     item_in_cart['item_qty'] += item_in_order['items__item_qty']
 
                 # just wanted a way to update total after merging the quantities
-                item_discounted_price = [li['items__product__discounted_price'] for li in order_items]
+                    if not order.ordered:
+                        item_discounted_price = [li['items__product__discounted_price'] for li in order_items]
 
-                for discount in item_discounted_price:
-                    total_price = sum(item['item_qty'] * discount for item in list(cart_items))
+                        for discount in item_discounted_price:
+                            total_price = sum(item['item_qty'] * discount for item in list(cart_items))
 
-                Order.objects.update(total=total_price)
+                        order.update(total=total_price)
 
     return 400, {'detail': 'There is an active order'}
 
