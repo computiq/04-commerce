@@ -92,3 +92,21 @@ class ItemOut(UUIDSchema, ItemSchema):
     pass
 
 
+##---------------------
+
+class AddressSchema(Schema):
+    address1: str
+
+class Add_address(ModelSchema):
+    city : CitySchema
+    class Config:
+        model = Address
+        model_fields=[
+           'address1',
+           'city',
+            'phone']
+
+
+
+class AddressOut(AddressSchema, UUIDSchema):
+    pass

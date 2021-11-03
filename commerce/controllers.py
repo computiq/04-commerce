@@ -11,12 +11,13 @@ from pydantic import UUID4
 from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus,Address
 from commerce.schemas import (MessageOut, ProductOut, CitiesOut,
                              CitySchema, VendorOut, ItemOut, 
-                             ItemSchema, ItemCreate)
+                             ItemSchema, ItemCreate, Add_address, AddressSchema,AddressOut)
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+city_controller = Router(tags=['City'])
 checkout_controller = Router(tags=['checkout'])
 
 
@@ -114,7 +115,7 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@city_controller.get('')
 def list_addresses(request):
     pass
 
@@ -124,7 +125,7 @@ def list_addresses(request):
 #     return Category.objects.all()
 
 
-@address_controller.get('cities', response={
+@city_controller.get('cities', response={
     200: List[CitiesOut],
     404: MessageOut
 })
@@ -137,7 +138,7 @@ def list_cities(request):
     return 404, {'detail': 'No cities found'}
 
 
-@address_controller.get('cities/{id}', response={
+@city_controller.get('cities/{id}', response={
     200: CitiesOut,
     404: MessageOut
 })
@@ -145,7 +146,7 @@ def retrieve_city(request, id: UUID4):
     return get_object_or_404(City, id=id)
 
 
-@address_controller.post('cities', response={
+@city_controller.post('cities', response={
     201: CitiesOut,
     400: MessageOut
 })
@@ -155,7 +156,7 @@ def create_city(request, city_in: CitySchema):
     return 201, city
 
 
-@address_controller.put('cities/{id}', response={
+@city_controller.put('cities/{id}', response={
     200: CitiesOut,
     400: MessageOut
 })
@@ -166,13 +167,83 @@ def update_city(request, id: UUID4, city_in: CitySchema):
     return 200, city
 
 
-@address_controller.delete('cities/{id}', response={
+@city_controller.delete('cities/{id}', response={
     204: MessageOut
 })
 def delete_city(request, id: UUID4):
     city = get_object_or_404(City, id=id)
     city.delete()
     return 204, {'detail': ''}
+
+
+
+#------------------------------------- Address -------------------------------------
+#-----------------------------------------------------------------------------------
+
+@address_controller.get('address', response={
+    200: List[AddressOut],
+    404: MessageOut
+})
+def list_Address(request):
+    Address_qs = Address.objects.all()
+
+    if  Address_qs:
+        return Address_qs
+
+    return 404, {'detail': 'No Address found'}
+
+
+
+@address_controller.get('address/{id}', response={
+    200: AddressOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+
+@address_controller.post('addresses', response={
+    201: Add_address,
+    400: MessageOut
+})
+def create_address(request, adress_in: Add_address):
+   
+    
+    address3 = Address.objects.create(**adress_in.dict())
+    #address3.save()
+    return address3
+
+'''
+@address_controller.put('address/{id}', response={
+    200: AddressOut(),
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressSchema):
+    address = get_object_or_404(Address, id=id)
+    address.address1 = address_in.address1
+    address.save()
+    return 200, address
+
+'''
+@address_controller.delete('addresses/{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    city = get_object_or_404(Address, id=id)
+    city.delete()
+    return 204, {'detail': ''}
+
+
+
+
+
+
+
+
+
+
+
 
 
 @order_controller.get('cart', response={
