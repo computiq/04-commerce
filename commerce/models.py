@@ -68,6 +68,10 @@ class Order(Entity):
         return sum(
             i.product.discounted_price * i.item_qty for i in self.items.all()
         )
+    
+    @property
+    def children(self):
+      return self.children
 
 
 class Item(Entity):
