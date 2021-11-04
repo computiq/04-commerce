@@ -203,7 +203,7 @@ def add_update_cart(request, item_in: ItemCreate):
         item.item_qty += item_in.item_qty
         item.save()
     except Item.DoesNotExist:
-        Item.objects.create(**item_in.dict(), user=User.objects.first(), ordered=False)
+        Item.objects.create(**item_in.dict(), user=User.objects.first())
 
     return 200, {'detail': 'Added to cart successfully'}
 
@@ -280,18 +280,18 @@ def increase_item_quantity(request, id: UUID4):
 })
 def create_order(request):
     user_items = Item.objects.filter(user=User.objects.first(), ordered=False)
-    active_order = Order.objects.filter(user=User.objects.first(), ordered=False, status__is_default = True)
+    active_order = Order.objects.get(user=User.objects.first(), ordered=False, status__is_default = True)
 
     if user_items:
       if active_order:
         for item in user_items:
           item_product = item.product_id
-          if item_product in active_order.values('product_id'):
+          if item_product in active_order.items.values('product_id'):
             order_item = active_order.items.filter(product_id=item_product)
             order_item.qty += item.qty
             order_item.save()
           else:
-            active_order.items.create(item)
+            active_order.items.add(item)
       else:
         active_order = Order.objects.create(user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
@@ -303,7 +303,7 @@ def create_order(request):
       active_order.items.update(ordered=True)
       active_order.total = active_order.order_total
       active_order.save()
-      return 200, {'detail': 'An order was created successfully'}
+      return 200, {'detail': 'An order was issued successfully'}
 
     return 404, {'detail': 'No items in cart to be ordered'}
 
@@ -354,17 +354,18 @@ def delete_address(request, id: UUID4):
     404: MessageOut
 })
 def checkout(request, checkout_in: CheckoutSchema):
-  order_qs = Order.objects.filter(user=User.objects.first(), status__is_default=True)
-  if order_qs:
+  try:
+    order = Order.objects.get(user=User.objects.first(), status__is_default=True)
     for attr, val in checkout_in.dict().items():
-      setattr(order_qs, attr, val)
-    order_qs.save()
-    order_qs.update(ordered=True)
-    order_qs.update(status=OrderStatus.objects.get(title="COMPLETED"))
-  else:
+      setattr(order, attr, val)
+    order.ordered= True
+    order.status= OrderStatus.objects.get(title="COMPLETED")
+    order.save()
+
+  except Order.DoesNotExist:
     return 404, {"detail" : "No order to checkout"}
 
-  return 201, order_qs
+  return 201, order
 
 @order_controller.get('', response={
     200: list[OrderOut],
