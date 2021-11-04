@@ -1,13 +1,18 @@
+from os import name
 from typing import List
+import random, string
+import json
 
 from django.contrib.auth.models import User
+from django.core.checks import messages
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
+from ninja.orm import create_schema
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Order, OrderStatus, Product, Category, City, Vendor, Item
+from commerce.schemas import AddressCreate, AddressOut, AddressUpdate, CheckOut, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -109,9 +114,38 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@address_controller.get('addresses', response={
+    200: List[AddressOut],
+    400: MessageOut
+})
 def list_addresses(request):
-    pass
+    addresses_qs = Address.objects.all()
+    if addresses_qs:
+        return addresses_qs
+    else:
+        return 400, {'detail': 'No addresses found'}
+
+
+@address_controller.post("add-address", response=MessageOut)
+def create_address(request, data_in: AddressCreate):
+
+    user = User.objects.first()
+    address = Address(**data_in.dict())
+    address.user = user
+    address.save()
+    return {'detail': 'Address added succsesfully'}
+
+
+@address_controller.post("update-address", response=MessageOut)
+def update_address(request, data_in: AddressUpdate):
+    address = get_object_or_404(Address, id=data_in.id)
+
+    for attr, value in data_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+  
+    return {'detail': 'Address updated succsesfully'}
+
 
 
 # @products_controller.get('categories', response=List[CategoryOut])
@@ -176,7 +210,7 @@ def delete_city(request, id: UUID4):
 })
 def view_cart(request):
     cart_items = Item.objects.filter(user=User.objects.first(), ordered=False)
-
+    
     if cart_items:
         return cart_items
 
@@ -194,8 +228,9 @@ def add_update_cart(request, item_in: ItemCreate):
         item.save()
     except Item.DoesNotExist:
         Item.objects.create(**item_in.dict(), user=User.objects.first())
+        return 200, {'detail': 'Added to cart successfully'}
 
-    return 200, {'detail': 'Added to cart successfully'}
+    
 
 
 @order_controller.post('item/{id}/reduce-quantity', response={
@@ -220,3 +255,59 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+
+@order_controller.put("item/{id}/increase-quantity", response={
+    200: MessageOut
+})
+def increase_qty(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user = User.objects.first())
+    item.item_qty += 1
+    item.save()
+    return 200, {'detail': 'The item quanity has been updated'}
+
+
+@order_controller.post("create", response={
+    200: MessageOut
+})
+def create_order(request):
+    items = Item.objects.filter(user=User.objects.first())
+
+    items.update(ordered=True)
+ 
+
+    order = Order(
+        user = User.objects.first(),
+        ref_code = ref_code(),
+        status = OrderStatus.objects.get(is_default=True),
+        ordered = False,
+        )
+    order.save()
+
+    dic = list(items.values('id'))
+    for entry in dic:
+        print(entry["id"])
+        order.items.add(entry["id"])
+    order.total = order.order_total
+    order.save()
+
+    #debugging
+    #print(order.items)
+
+    return 200, {'detail': 'the order has been succsesfuly created'}
+
+
+
+@order_controller.put('checkout')
+def checkout(request, data_in: CheckOut):
+    order = get_object_or_404(Order, user=User.objects.first())
+    order.note = data_in.note
+    order.address = Address.objects.get(id=data_in.address_id)
+    order.ordered = True
+    order.status = OrderStatus.objects.get(title='PROCESSING')
+    order.save()
+    return 200, {'detail': 'Check out done sucsessfuly'}
+
+def ref_code():
+    x = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    return x
