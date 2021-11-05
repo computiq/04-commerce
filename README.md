@@ -103,7 +103,7 @@ Note: don't forget to `makemigrations` and `migrate`
 /api/orders/item/{id}/increase-quantity
 ```
 
-* [ ] `Address Model` => CRUD operations
+* [x] `Address Model` => CRUD operations
 
 ```http request
 /api/addresses

@@ -8,8 +8,8 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.schemas import AddressIn, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, AddressesOut
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -254,6 +254,8 @@ def create_order(request):
     return {'detail': 'order created successfully'}
 
 
+
+# increse-quantity endpoint
 @order_controller.post('item/{id}/increase-quantity', response={
     200: MessageOut,
 })
@@ -263,3 +265,56 @@ def increase_item_quantity(request, id: UUID4):
     item.save()
 
     return 200, {'detail': 'Item quantity increased successfully!'}
+
+#addresses CRUD operations
+
+@address_controller.get('addresses', response={
+    200: List[AddressesOut],
+    404: MessageOut
+})
+def list_addresses(request):
+    addresses_qs = Address.objects.all()
+
+    if addresses_qs:
+        return addresses_qs
+
+    return 404, {'detail': 'No addresses found'}
+
+
+@address_controller.get('addresses/{id}', response={
+    200: AddressesOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('addresses', response={
+    201: AddressesOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressIn):
+    address = Address(**address_in.dict())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('addresses/{id}', response={
+    200: AddressesOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressIn):
+    address = get_object_or_404(Address, id=id)
+    for attr, value in address_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+    return 200, address
+
+
+@address_controller.delete('addresses/{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': 'Deleted Successfully'}
