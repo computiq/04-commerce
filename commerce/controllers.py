@@ -9,13 +9,13 @@ from pydantic import UUID4
 import random
 import string
 
-from commerce.models import Product, Category, City, Vendor, Item, Address\
-                            , Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema\
-                            ,VendorOut, ItemOut, ItemSchema, ItemCreate\
-                            , CategoryOut, AddressSchema, AddressesOut\
-                            , AddressesCreate, AddressesUpdate, OrderSchema\
-                            , OrderCreate
+from commerce.models import Product, Category, City, Vendor, Item, Address \
+    , Order, OrderStatus
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema \
+    , VendorOut, ItemOut, ItemSchema, ItemCreate \
+    , CategoryOut, AddressSchema, AddressesOut \
+    , AddressesCreate, AddressesUpdate, OrderSchema \
+    , OrderCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -30,7 +30,7 @@ def list_vendors(request):
     if vendor_set:
         return vendor_set
 
-    return 400, {detail: 'No categories found'}
+    return 400, {'detail': 'No categories found'}
 
 
 @products_controller.get('', response={
@@ -131,8 +131,8 @@ def list_categories(request):
 
     if category_set:
         return category_set
-        
-    return 404, {detail: 'No categories found'}
+
+    return 404, {'detail': 'No categories found'}
 
 
 @address_controller.get('cities', response={
@@ -303,7 +303,7 @@ def delete_item(request, id: UUID4):
 @order_controller.get('', response={
     200: List[OrderSchema],
     404: MessageOut
-    })
+})
 def list_orders(request, ordered: bool = False):
     order_set = Order.objects.filter(user=User.objects.first())
     if not ordered:
