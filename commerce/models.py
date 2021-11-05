@@ -82,7 +82,7 @@ class Item(Entity):
     ordered = models.BooleanField('ordered', default=False)
 
     def __str__(self):
-        return f''
+        return self.product.name
 
 
 class OrderStatus(Entity):
