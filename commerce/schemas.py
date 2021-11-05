@@ -95,18 +95,24 @@ class ItemOut(UUIDSchema, ItemSchema):
 ##---------------------
 
 class AddressSchema(Schema):
-    address1: str
 
-class Add_address(ModelSchema):
-    city : CitySchema
-    class Config:
-        model = Address
-        model_fields=[
-           'address1',
-           'city',
-            'phone']
+    address1: str
+  
+
+
+class  Add_address(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    city: UUID4
+    phone: str
 
 
 
 class AddressOut(AddressSchema, UUIDSchema):
     pass
+
+
+
+class OrderSchema(Schema):
+    address:UUID4

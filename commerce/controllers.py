@@ -11,7 +11,7 @@ from pydantic import UUID4
 from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus,Address
 from commerce.schemas import (MessageOut, ProductOut, CitiesOut,
                              CitySchema, VendorOut, ItemOut, 
-                             ItemSchema, ItemCreate, Add_address, AddressSchema,AddressOut)
+                             ItemSchema, ItemCreate, Add_address, AddressSchema,AddressOut,OrderSchema)
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -202,30 +202,32 @@ def retrieve_address(request, id: UUID4):
     return get_object_or_404(Address, id=id)
 
 
-
-@address_controller.post('addresses', response={
-    201: Add_address,
+@address_controller.post('', response={
+    201: AddressOut,
     400: MessageOut
 })
-def create_address(request, adress_in: Add_address):
-   
-    
-    address3 = Address.objects.create(**adress_in.dict())
-    #address3.save()
-    return address3
+def create_address(request, address_in:  Add_address):
+    city_instance = City.objects.get(id=address_in.city)
+    del address_in.city
+    address = Address.objects.create(**address_in.dict(), city=city_instance, user=User.objects.first())
+    address.save()
+    return 201, address
 
-'''
-@address_controller.put('address/{id}', response={
-    200: AddressOut(),
-    400: MessageOut
+
+@address_controller.put('/{id}', response={
+    200: AddressOut,
+    404: MessageOut
 })
-def update_address(request, id: UUID4, address_in: AddressSchema):
+def update_address(request, id: UUID4, new_data:Add_address):
     address = get_object_or_404(Address, id=id)
-    address.address1 = address_in.address1
+    city_instance = City.objects.get(id=new_data.city)
+    new_data.city = city_instance
+    for attr, value in new_data.dict().items():
+        setattr(address, attr, value)
     address.save()
     return 200, address
 
-'''
+
 @address_controller.delete('addresses/{id}', response={
     204: MessageOut
 })
@@ -233,15 +235,6 @@ def delete_address(request, id: UUID4):
     city = get_object_or_404(Address, id=id)
     city.delete()
     return 204, {'detail': ''}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -307,7 +300,9 @@ def generate_ref_code():
 
 
 #----------------------- Create Order ------------------------------------------
-#------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+
+
 @order_controller.post('create-order', response=MessageOut)
 def create_order(request):
     '''
@@ -327,6 +322,7 @@ def create_order(request):
     user_items = Item.objects.filter(user=User.objects.first(), ordered=False)
     user_items.update(ordered=True)
     
+
     
     order_qs.items.add(*user_items)
     order_qs.total = order_qs.order_total
@@ -350,23 +346,27 @@ def create_order(request):
 @checkout_controller.post('create-checkout', response=
 { 200: MessageOut})
 
-def create_checkout(request,id:UUID4,note:str=None):
+def create_checkout(request,order_in:OrderSchema,note:str=None):
     '''
     * create the checkout endpoint
   * you should be able to add an optional note
   * you should be able to add an address to the order
   * set (ordered field) to True, thus the order becomes sealed
   * change order status accordingly
-   checkoutCreate
+   
     '''
 
-    if get_object_or_404(City, id=id):
+    if get_object_or_404(City):
         check_order=Order(
             user=User.objects.first(),
             status=OrderStatus.objects.get(title='SHIPPED'),
+           
+
         )
+        
         check_order.note=note
         check_order.ordered=True
+        check_order.address=Address.objects.get(id=order_in.address)
         check_order.save()
         return {'detail': ' checkout created successfully'}
     else:
