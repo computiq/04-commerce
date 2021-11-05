@@ -287,18 +287,6 @@ def increase_item_quantity(request, id: UUID4):
 -    set added items (ordered field) to be True
 /api/orders/create
 """
-def get_item_p_id(query_set):
-    field_product_id = []
-    for field in query_set:
-        try:
-            field_item = field.items.values() 
-            for i in field_item:
-                field_product_id.append(i['product_id'])
-        except:
-            for item in query_set:
-                field_product_id.append(item.product_id)
-
-    return field_product_id
 
 def generate_ref_code():
     ref_code = ''.join(random.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(6) )
@@ -310,50 +298,54 @@ def generate_ref_code():
 })
 def create_order(request):
 
-    items = Item.objects.filter(user = User.objects.first(), ordered = False)
+    user = User.objects.first()
+
+    orders = Order.objects.filter(user=user, ordered=False)
+    user_items = Item.objects.filter(user=user).filter(ordered=False)
+
+    for order in orders:
+        order_items = Item.objects.filter(order=order.id)
 
     # Check If we have Precreated Order
-    if items:
-        orders = Order.objects.filter(user = User.objects.first(), ordered = False)
+    if user_items:
         if orders:
-            for item in items:
-                for order in orders:
-                    order_items = Item.objects.filter(order = order.id)
-                    for order_item in order_items:
-                        if order_item.product_id == item.product_id != None:
-                            order_item.item_qty += item.item_qty
-                            order_item.save()
-                            items_ = Item.objects.filter(id = item.id)
-                            items_.delete()
+            for item in user_items:
+                for order_item in order_items:
+                    if order_item.product_id == item.product_id is not None:
+                        order_item.item_qty += item.item_qty
+                        order_item.save()
+                        items_ = Item.objects.filter(id=item.id)
+                        items_.delete()
 
                 order.total = order.order_total
                 order.save()
-            items = Item.objects.filter(user = User.objects.first(), ordered = False)
-            if items:
-                order = Order.objects.get(user = User.objects.first(), ordered = False)
-                order.items.add(*items)
+
+            # Check if we have a new items to add
+            user_items = Item.objects.filter(user=user, ordered=False)
+            if user_items:
+                order.items.add(*user_items)
                 order.total = order.order_total
 
                 order.save()
-                items.update(ordered = True)
+                user_items.update(ordered=True)
 
-            return 200, {"detail":f"Order with ID: {order.id}, Has been Ubdated "}
+            return 200, {"detail": f"Order with ID: {order.id}, Has been Updated "}
 
         # create New Order
-        order = Order(user = User.objects.first(),
-                    status = OrderStatus.objects.get(is_default = True),
-                    ref_code = generate_ref_code(), ordered = False )
+        new_order = Order(user=user,
+                          status=OrderStatus.objects.get(is_default=True),
+                          ref_code=generate_ref_code(), ordered=False)
 
-        order.save()
+        new_order.save()
 
-        order.items.add(*items)
-        order.total = order.order_total
+        new_order.items.add(*user_items)
+        new_order.total = new_order.order_total
 
-        order.save()
-        items.update(ordered = True)
-
-        return 200, {"detail":f"Order Has been Created with ID: {order.id}"}
+        new_order.save()
+        user_items.update(ordered=True)
+        return 200, {"detail": f"Order Has been Created with ID: {new_order.id}"}
     return 404, {"detail": "No Items Found"}
+
 
 @order_controller.get("view-order", response={
     200: List[OrderOut],
@@ -374,9 +366,9 @@ def view_order(request):
 def delet_order(request):
     order = Order.objects.filter(user = User.objects.first(), ordered = False)
 
-    if Order:
+    if order:
         order.delete()
-        return 200, {"detail": "Order Deleted"}        
+        return 200, {"detail": "Order Deleted"}
 
     return 404, {"detail": "No Items Found"}
 
