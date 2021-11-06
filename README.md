@@ -109,7 +109,7 @@ Note: don't forget to `makemigrations` and `migrate`
 /api/addresses
 ```
 
-* [ ] `Order Model` => checkout endpoint
+* [x] `Order Model` => checkout endpoint
 
 ```http request
 /api/orders/checkout

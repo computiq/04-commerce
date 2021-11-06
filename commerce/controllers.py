@@ -7,14 +7,17 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
+from django.core.exceptions import ObjectDoesNotExist
 
 from commerce.models import Address, Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import AddressIn, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, AddressesOut
+from commerce.schemas import AddressIn, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, AddressesOut, CheckOut
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+checkout_controller = Router(tags=['checkout'])
+
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -318,3 +321,24 @@ def delete_address(request, id: UUID4):
     address = get_object_or_404(Address, id=id)
     address.delete()
     return 204, {'detail': 'Deleted Successfully'}
+
+
+@checkout_controller.post('checkout', response={
+    400: MessageOut,
+    200: CheckOut
+})
+def checkout_create(request, check_out: CheckOut):
+    checkout_obj = get_object_or_404(Order, user=User.objects.first(), ordered = False)
+    for item in checkout_obj.items:
+        if item.item_qty > 0:
+            item.item_qty -= 1
+            item.save()
+            
+    if checkout_obj.note:
+        checkout_obj.note =  check_out.note
+    checkout_obj.address =check_out.address
+    checkout_obj.ordered = True
+    checkout_obj.update(status ='NEW')
+    checkout_obj.save()
+
+    return 200, {'detail': 'checkout successful'}
