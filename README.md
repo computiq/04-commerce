@@ -115,4 +115,4 @@ Note: don't forget to `makemigrations` and `migrate`
 /api/orders/checkout
 ```
 
-* [ ] Bonus
+* [x] Bonus

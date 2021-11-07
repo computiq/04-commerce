@@ -190,17 +190,21 @@ def view_cart(request):
 
 @order_controller.post('add-to-cart', response={
     200: MessageOut,
-    # 400: MessageOut
+    400: MessageOut
 })
 def add_update_cart(request, item_in: ItemCreate):
-    try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
-        item.item_qty += 1
-        item.save()
-    except Item.DoesNotExist:
-        Item.objects.create(**item_in.dict(), user=User.objects.first())
+    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+    #adding items to the cart are separate from the previous order items
+    if not user_items: 
+        try:
+            item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
+            item.item_qty += 1
+            item.save()
+        except Item.DoesNotExist:
+            Item.objects.create(**item_in.dict(), user=User.objects.first())
 
-    return 200, {'detail': 'Added to cart successfully'}
+        return 200, {'detail': 'Added to cart successfully'} 
+    return 400, {'detail': 'You are allready have items'}
 
 
 @order_controller.post('item/{id}/reduce-quantity', response={
@@ -239,22 +243,32 @@ def create_order(request):
     * add NEW status
     * calculate the total
     '''
-
-    order_qs = Order.objects.create(
+    #user can have only one active order
+    user_order = Order.objects.filter(user = User.objects.first()).filter(ordered=True)
+    if not user_order:
+        #print("create")
+        order_qs = Order.objects.create(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
         ref_code=generate_ref_code(),
         ordered=False,
     )
 
-    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
 
-    order_qs.items.add(*user_items)
-    order_qs.total = order_qs.order_total
-    user_items.update(ordered=True)
-    order_qs.save()
-
-    return {'detail': 'order created successfully'}
+        user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+        #adding items to the cart are separate from the previous order items
+        if not user_items: 
+            order_qs.items.add(*user_items)
+            order_qs.total = order_qs.order_total
+            user_items.update(ordered=True)
+            order_qs.save()
+        # merger exciting items to the order
+        else:
+            user_items.item_qty += 1
+            user_items.update(ordered=True)
+            user_items.save()
+        return {'detail': 'Order create and items added successfully'}
+    return {'detail': 'You are allready have order'}
 
 
 
@@ -333,7 +347,7 @@ def checkout_create(request, check_out: CheckOut):
         if item.item_qty > 0:
             item.item_qty -= 1
             item.save()
-            
+
     if checkout_obj.note:
         checkout_obj.note =  check_out.note
     checkout_obj.address =check_out.address
