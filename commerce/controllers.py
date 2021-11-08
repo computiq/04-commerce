@@ -8,13 +8,15 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.models import Address, Product, Category, City, Vendor, Item, Order, OrderStatus
 from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+
+
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -113,7 +115,7 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 
 @address_controller.get('')
 def list_addresses(request):
-    pass
+    return list(Address.objects.values)
 
 
 # @products_controller.get('categories', response=List[CategoryOut])
@@ -228,16 +230,13 @@ def generate_ref_code():
     return ''.join(random.sample(string.ascii_letters + string.digits, 6))
 
 
-@order_controller.post('create-order', response=MessageOut)
-def create_order(request):
-    '''
-    * add items and mark (ordered) field as True
-    * add ref_number
-    * add NEW status
-    * calculate the total
-    '''
 
-    order_qs = Order.objects.create(
+
+
+@order_controller.post('ordercreate',response=MessageOut)
+def ordercreat(request):
+    
+    order = Order.objects.create(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
         ref_code=generate_ref_code(),
@@ -246,9 +245,23 @@ def create_order(request):
 
     user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
 
-    order_qs.items.add(*user_items)
-    order_qs.total = order_qs.order_total
+    order.items.add(*user_items)
+    order.total = order.order_total
     user_items.update(ordered=True)
-    order_qs.save()
+    order.save()
 
     return {'detail': 'order created successfully'}
+
+
+
+@order_controller.post('item/{id}/reduce-increase', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+
+    item.item_qty += 1
+
+    item.save()
+    return 200, {'detail': 'Item quantity increase successfully!'}
