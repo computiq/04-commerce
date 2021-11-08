@@ -23,7 +23,6 @@ Note: don't forget to `makemigrations` and `migrate`
 /api/orders/item/{id}/increase-quantity
 ```
 
-
 * create a create-order endpoint
 * this endpoint should satisfy the following
   * create a new order
@@ -55,10 +54,8 @@ Note: don't forget to `makemigrations` and `migrate`
 
 * the above API endpoints should satisfy the following
   * adding items to the cart are separate from the previous order items
-  * check if you have an active order, then the create-order endpoint will check for the matching items (i.e. if you have items in your active order that matches the items in the cart) and instead of adding them to the order, just merge them (add the quantities) 
+  * check if you have an active order, then the create-order endpoint will check for the matching items (i.e. if you have items in your active order that matches the items in the cart) and instead of adding them to the order, just merge them (add the quantities)
   * you can only have one **active** order
-
-
 
 # Workflow
 
@@ -75,8 +72,6 @@ Note: don't forget to `makemigrations` and `migrate`
   * user can delete address
 * user can checkout (checkout)
 
-
-
 ## create order
 
 * add items and mark (ordered) field as True
@@ -84,8 +79,7 @@ Note: don't forget to `makemigrations` and `migrate`
 * add NEW status
 * calculate the total
 
-
-## checkout 
+## checkout
 
 * if this user has an active order
 * add address
@@ -97,3 +91,28 @@ Note: don't forget to `makemigrations` and `migrate`
 
 * create addresses schema
 * create crud operations
+
+<br/>
+<br/>
+
+# Zubaidah's TODO
+
+* [x] `Item Model` =>  increse-quantity endpoint
+
+```http request
+/api/orders/item/{id}/increase-quantity
+```
+
+* [x] `Address Model` => CRUD operations
+
+```http request
+/api/addresses
+```
+
+* [x] `Order Model` => checkout endpoint
+
+```http request
+/api/orders/checkout
+```
+
+* [x] Bonus

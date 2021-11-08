@@ -1,10 +1,9 @@
-from typing import List
-
-from ninja import ModelSchema, Schema
-from ninja.orm import create_schema
+from typing import List, Optional
+from ninja import Schema, ModelSchema, schema
 from pydantic import UUID4
 
-from commerce.models import Product, Merchant
+
+from commerce.models import Product, Merchant, OrderStatus
 
 
 class MessageOut(Schema):
@@ -91,4 +90,22 @@ class ItemCreate(Schema):
 class ItemOut(UUIDSchema, ItemSchema):
     pass
 
+    
+class AddressesOut(UUIDSchema):
+    work_address: bool
+    address1: str
+    address2: str
+    city: CitiesOut
+    phone: str
 
+class AddressIn(Schema):
+    user_id: str
+    work_address: bool
+    address1: str
+    address2: str
+    city_id: UUID4
+    phone: str
+
+class CheckOut(Schema):
+    note: Optional[str]
+    address: List[AddressesOut]

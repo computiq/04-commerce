@@ -7,14 +7,17 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
+from django.core.exceptions import ObjectDoesNotExist
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.schemas import AddressIn, MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, AddressesOut, CheckOut
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+checkout_controller = Router(tags=['checkout'])
+
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -187,17 +190,21 @@ def view_cart(request):
 
 @order_controller.post('add-to-cart', response={
     200: MessageOut,
-    # 400: MessageOut
+    400: MessageOut
 })
 def add_update_cart(request, item_in: ItemCreate):
-    try:
-        item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
-        item.item_qty += 1
-        item.save()
-    except Item.DoesNotExist:
-        Item.objects.create(**item_in.dict(), user=User.objects.first())
+    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+    #adding items to the cart are separate from the previous order items
+    if not user_items: 
+        try:
+            item = Item.objects.get(product_id=item_in.product_id, user=User.objects.first())
+            item.item_qty += 1
+            item.save()
+        except Item.DoesNotExist:
+            Item.objects.create(**item_in.dict(), user=User.objects.first())
 
-    return 200, {'detail': 'Added to cart successfully'}
+        return 200, {'detail': 'Added to cart successfully'} 
+    return 400, {'detail': 'You are allready have items'}
 
 
 @order_controller.post('item/{id}/reduce-quantity', response={
@@ -236,19 +243,116 @@ def create_order(request):
     * add NEW status
     * calculate the total
     '''
-
-    order_qs = Order.objects.create(
+    #user can have only one active order
+    user_order = Order.objects.filter(user = User.objects.first()).filter(ordered=True)
+    if not user_order:
+        #print("create")
+        order_qs = Order.objects.create(
         user=User.objects.first(),
         status=OrderStatus.objects.get(is_default=True),
         ref_code=generate_ref_code(),
         ordered=False,
     )
 
-    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
 
-    order_qs.items.add(*user_items)
-    order_qs.total = order_qs.order_total
-    user_items.update(ordered=True)
-    order_qs.save()
+        user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+        #adding items to the cart are separate from the previous order items
+        if not user_items: 
+            order_qs.items.add(*user_items)
+            order_qs.total = order_qs.order_total
+            user_items.update(ordered=True)
+            order_qs.save()
+        # merger exciting items to the order
+        else:
+            user_items.item_qty += 1
+            user_items.update(ordered=True)
+            user_items.save()
+        return {'detail': 'Order create and items added successfully'}
+    return {'detail': 'You are allready have order'}
 
-    return {'detail': 'order created successfully'}
+
+
+# increse-quantity endpoint
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+#addresses CRUD operations
+
+@address_controller.get('addresses', response={
+    200: List[AddressesOut],
+    404: MessageOut
+})
+def list_addresses(request):
+    addresses_qs = Address.objects.all()
+
+    if addresses_qs:
+        return addresses_qs
+
+    return 404, {'detail': 'No addresses found'}
+
+
+@address_controller.get('addresses/{id}', response={
+    200: AddressesOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
+
+
+@address_controller.post('addresses', response={
+    201: AddressesOut,
+    400: MessageOut
+})
+def create_address(request, address_in: AddressIn):
+    address = Address(**address_in.dict())
+    address.save()
+    return 201, address
+
+
+@address_controller.put('addresses/{id}', response={
+    200: AddressesOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressIn):
+    address = get_object_or_404(Address, id=id)
+    for attr, value in address_in.dict().items():
+        setattr(address, attr, value)
+    address.save()
+    return 200, address
+
+
+@address_controller.delete('addresses/{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': 'Deleted Successfully'}
+
+
+@checkout_controller.post('checkout', response={
+    400: MessageOut,
+    200: CheckOut
+})
+def checkout_create(request, check_out: CheckOut):
+    checkout_obj = get_object_or_404(Order, user=User.objects.first(), ordered = False)
+    for item in checkout_obj.items:
+        if item.item_qty > 0:
+            item.item_qty -= 1
+            item.save()
+
+    if checkout_obj.note:
+        checkout_obj.note =  check_out.note
+    checkout_obj.address =check_out.address
+    checkout_obj.ordered = True
+    checkout_obj.update(status ='NEW')
+    checkout_obj.save()
+
+    return 200, {'detail': 'checkout successful'}
