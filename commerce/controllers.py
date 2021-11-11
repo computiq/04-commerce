@@ -110,10 +110,32 @@ select * from merchant where id in (mids) * 4 for (label, category and vendor)
 """
 
 
-@address_controller.get('')
+@address_controller.get('', response={
+    200: AddressesOut,
+    404: MessageOut
+})
 def list_addresses(request):
-    pass
+    address_list = Address.objects.all()
+    if address_list:
+        return Address
+    return 400, {'detail': 'No address'}
 
+
+@address_controller.get('{id}', response={
+    200: AddressesOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(City, id=id)
+
+
+@address_controller.delete('{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': 'Address was deleted'}
 
 # @products_controller.get('categories', response=List[CategoryOut])
 # def list_categories(request):
@@ -168,7 +190,7 @@ def update_city(request, id: UUID4, city_in: CitySchema):
 def delete_city(request, id: UUID4):
     city = get_object_or_404(City, id=id)
     city.delete()
-    return 204, {'detail': ''}
+    return 204, {'detail': 'City was deleted'}
 
 
 @order_controller.get('cart', response={
