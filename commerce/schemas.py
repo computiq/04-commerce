@@ -90,3 +90,14 @@ class ItemCreate(Schema):
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+
+class AddressSchema(Schema):
+    workaddress: bool = None
+    address1: str
+    address2: str = None
+    phone: str
+
+
+class AddressesOut(UUIDSchema, AddressSchema):
+    city: CitiesOut

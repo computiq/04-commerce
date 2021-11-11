@@ -1,18 +1,19 @@
-from typing import List
-
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from ninja import Router
+import string
+import random
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import *
+from commerce.schemas import *
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
+checkout_controller = Router(tags=['checkouts'])
 
 
 @vendor_controller.get('', response=List[VendorOut])
@@ -212,6 +213,17 @@ def reduce_item_quantity(request, id: UUID4):
     return 200, {'detail': 'Item quantity reduced successfully!'}
 
 
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty += 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity increased successfully!'}
+
+
 @order_controller.delete('item/{id}', response={
     204: MessageOut
 })
@@ -220,3 +232,40 @@ def delete_item(request, id: UUID4):
     item.delete()
 
     return 204, {'detail': 'Item deleted!'}
+
+
+def generate_ref_code():
+    return ''.join(random.sample(string.ascii_letters + string.digits, 6))
+
+
+@order_controller.post('create_order', response={
+    200: MessageOut,
+    400: MessageOut,
+})
+def create_order(request):
+    order_qs = Order(
+        user=User.objects.first,
+        status=OrderStatus.objects.get(is_default=True),
+        ref_code=generate_ref_code(),
+        ordered=False,
+    )
+
+    user_items = Item.objects.filter(user=User.objects.first()),
+    user_items.update(ordered=True)
+    order_qs.items.add(*user_items)
+    order_qs.total = order_qs.order_total
+    order_qs.save()
+
+    return {'details': 'Order was created successfully'}
+
+
+@checkout_controller.post('checkout', response={
+    200: MessageOut,
+    400: MessageOut,
+})
+def checkout(request, address_in: AddressesOut, city: str):
+    address_qs = Address(**address_in.dict(), user=User.objects.first(), city=UUID4)
+    address_qs.save()
+    order = Order.objects.get(user=User.objects.first(), ordered=False)
+
+    return {'details': 'Checkout was created successfully'}
