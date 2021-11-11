@@ -137,6 +137,7 @@ def delete_address(request, id: UUID4):
     address.delete()
     return 204, {'detail': 'Address was deleted'}
 
+
 # @products_controller.get('categories', response=List[CategoryOut])
 # def list_categories(request):
 #     return Category.objects.all()
