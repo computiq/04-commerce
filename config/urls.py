@@ -27,6 +27,7 @@ api.add_router('products', products_controller)
 api.add_router('addresses', address_controller)
 api.add_router('vendors', vendor_controller)
 api.add_router('orders', order_controller)
+api.add_router('orders', order_controller)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -36,4 +37,3 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

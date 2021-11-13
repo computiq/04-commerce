@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
@@ -95,17 +95,18 @@ class StatusOrder(Schema):
     is_default:bool
     title:str
 
+
 class AddressSchema(Schema):
     work_address:bool
     address1:str
     address2:str
     phone:int
+    city:CitySchema
+class AddressOut(AddressSchema,UUIDSchema):
+   pass
 
-class AddressOut(UUIDSchema,AddressSchema):
-    city:CitiesOut
+    
 
 class CheckOut(Schema):
     note:str
-    address:AddressOut
-
-
+    address:AddressSchema
