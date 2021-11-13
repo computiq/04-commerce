@@ -1,5 +1,5 @@
 from typing import List
-
+from uuid import UUID, uuid4
 from ninja import ModelSchema, Schema
 from ninja.orm import create_schema
 from pydantic import UUID4
@@ -91,4 +91,44 @@ class ItemCreate(Schema):
 class ItemOut(UUIDSchema, ItemSchema):
     pass
 
+class AddressSchema(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    phone: str
+    city: CitiesOut
 
+
+class AddressCreate(Schema):
+    work_address: bool
+    address1: str
+    address2: str
+    phone: str
+    city_id: UUID4
+
+
+class AddressOut(AddressSchema, UUIDSchema):
+    pass
+
+
+class OrderOut(Schema):
+    note: str = None
+    ref_code: str
+    ordered: bool
+    address: AddressSchema = None
+    items: List[ItemOut]
+
+
+class OrderSchema(OrderOut, UUIDSchema):
+    pass
+
+
+class OrderChange(Schema):
+    item_id: UUID4
+    prodect_id: UUID4
+
+
+
+class CheckOut(Schema):
+    note: str
+    address_id: UUID4
