@@ -1,18 +1,23 @@
+import string
+from random import random
 from typing import List
 
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import Router, ModelSchema
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate,AddressOut, AddressSchema
+from commerce.models import Product, Category, City, Vendor, Item, Order, Address, OrderStatus
+from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate, \
+    AddressOut, AddressSchema
+
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
 vendor_controller = Router(tags=['vendors'])
 order_controller = Router(tags=['orders'])
-Address_controller = Router(tags=['ADDRESS'])
+ADDRESS_controller = Router(tags=['Address'])
+
 
 @vendor_controller.get('', response=List[VendorOut])
 def list_vendors(request):
@@ -220,76 +225,85 @@ def delete_item(request, id: UUID4):
 
     return 204, {'detail': 'Item deleted!'}
 
-@Address_controller.get('address', response={
-    200: List[AddressOut],
-    404: MessageOut
-})
-def list_address(request):
-    address_qs = Address.objects.all()
-    if address_qs:
-        return address_qs
-    return 404, {'detail': 'No cities found'}
+
+'''def generate_ref_code():
+    return ''.join(random.sample(string.ascii_letters + string.digits, 6))'''
 
 
-@Address_controller.get('address/{id}', response={
-    200: AddressOut,
-    404: MessageOut
-})
-def retrieve_city(request, id: UUID4):
-    return get_object_or_404(City, id=id)
-
-
-@Address_controller.post('address', response={
-    201: AddressOut,
-    400: MessageOut
-})
-def create_city(request, address_in: AddressSchema):
-    address = Address(**address_in.dict())
-    address.save()
-    return 201, address
-
-
-@Address_controller.delete('address/{id}', response={
-    204: MessageOut
-})
-def delete_city(request, id: UUID4):
-    address = get_object_or_404(Address, id=id)
-    address.delete()
-    return 204, {'detail': ''}
-
-
-@address_controller.put('cities/{id}', response={
-    200: CitiesOut,
-    400: MessageOut
-})
-def update_address(request, id: UUID4, address_in: AddressSchema):
-    address = get_object_or_404(City, id=id)
-    address.address1 = address_in.address1
-    address.address2 = address_in.address2
-    address.phone = address_in.phone
-    address.save()
-    return 200, address
-
-
-def generate_ref_code():
-    return ''.join(random.sample(string.ascii_letters + string.digits, 6))
-
-
-@order_controller.post('create-order')
-def crate_order(request):
-    order_qs = Order(
+@order_controller.post('create-order', response=MessageOut)
+def create_order(request):
+    order_qs = Order.objects.create(
         user=User.objects.first(),
-        stats=OrderStatus.objects.get(is_default=True),
-        ref_code=generate_ref_code(),
+        status=OrderStatus.objects.get(is_default=True),
+        # ref_code=generate_ref_code(),
         ordered=False,
     )
 
-    user_items = Item.objects.filter(user=User.objects.first())
-    user_items.update(ordered=True)
-    order_qs.items.addend()
+    user_items = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+
+    order_qs.items.add(*user_items)
     order_qs.total = order_qs.order_total
+    user_items.update(ordered=True)
     order_qs.save()
-    return {'detail': 'order create successfully'}
+
+    return {'detail': 'order created successfully'}
+
+
+@order_controller.post('item/{id}/increase-quantity', response={
+    200: MessageOut,
+})
+def increase_item_quantity(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    if item.item_qty <= 1:
+        item.delete()
+        return 200, {'detail': 'Item deleted!'}
+    item.item_qty += 1
+    item.save()
+
+    return 200, {'detail': 'Item quantity increase successfully!'}
+
+
+@ADDRESS_controller.get('Address', response={
+    200: List[AddressOut],
+    404: MessageOut
+})
+def list_cities(request):
+    address_qs = Address.objects.all()
+
+    if address_qs:
+        return address_qs
+
+    return 404, {'detail': 'No cities found'}
+
+@ADDRESS_controller.post('create address', response={
+    200: List[AddressOut],
+    400: MessageOut
+})
+def create_address(request, address_in: AddressSchema):
+    address = Address.objects.create(**address_in.dict())
+    address.save()
+    return 200
+
+@ADDRESS_controller.put('address/{id}', response={
+    200: AddressOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, address_in: AddressSchema):
+    address = get_object_or_404(Address, id=id)
+    address .address1 = address .address1
+    address.address2 = address.address2
+    address.phone = address.phone
+    address .save()
+    return 200, address
+
+
+@ADDRESS_controller.delete('address/{id}', response={
+    204: MessageOut
+})
+def delete_address(request, id: UUID4):
+    address = get_object_or_404(Address, id=id)
+    address.delete()
+    return 204, {'detail': ''}
 
 @order_controller.post('CheckOut', response={
     201: AddressOut,
