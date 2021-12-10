@@ -1,6 +1,7 @@
 import random
 import string
 from typing import List
+from uuid import uuid4
 
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -8,8 +9,8 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from pydantic import UUID4
 
-from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.models import Address, Product, Category, City, Vendor, Item, Order, OrderStatus
+from commerce.schemas import AddressOut, MessageOut, OrderOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -55,70 +56,29 @@ def list_products(
     return products_qs
 
 
-"""
-# product = Product.objects.all().select_related('merchant', 'category', 'vendor', 'label')
-    # print(product)
-    #
-    # order = Product.objects.all().select_related('address', 'user').prefetch_related('items')
-
-    # try:
-    #     one_product = Product.objects.get(id='8d3dd0f1-2910-457c-89e3-1b0ed6aa720a')
-    # except Product.DoesNotExist:
-    #     return {"detail": "Not found"}
-    # print(one_product)
-    #
-    # shortcut_function = get_object_or_404(Product, id='8d3dd0f1-2910-457c-89e3-1b0ed6aa720a')
-    # print(shortcut_function)
-
-    # print(type(product))
-    # print(product.merchant.name)
-    # print(type(product.merchant))
-    # print(type(product.category))
 
 
-Product <- Merchant, Label, Category, Vendor
-
-Retrieve 1000 Products form DB
-
-products = Product.objects.all()[:1000] (select * from product limit 1000)
-
-for p in products:
-    print(p)
-    
-for every product, we retrieve (Merchant, Label, Category, Vendor) records
-
-Merchant.objects.get(id=p.merchant_id) (select * from merchant where id = 'p.merchant_id')
-Label.objects.get(id=p.label_id) (select * from merchant where id = 'p.label_id')
-Category.objects.get(id=p.category_id) (select * from merchant where id = 'p.category_id')
-Vendor.objects.get(id=p.vendor_id) (select * from merchant where id = 'p.vendor_id')
-
-4*1000+1
-
-Solution: Eager loading
-
-products = (select * from product limit 1000)
-
-mids = [p1.merchant_id, p2.merchant_id, ...]
-[p1.label_id, p2.label_id, ...]
-.
-.
-.
-
-select * from merchant where id in (mids) * 4 for (label, category and vendor)
-
-4+1
-
-"""
-
-
-@address_controller.get('')
+@address_controller.get('address', response={
+    200: List[AddressOut],
+    404 : MessageOut
+})
 def list_addresses(request):
-    pass
+    add_qs= Address.objects.all()
+    if add_qs:
+        return add_qs
+    return 404,{'details': 'no address'}
+
+@address_controller.get('addaddress', response={
+    200: MessageOut,
+    404 : MessageOut
+})
+def create_addresse(request, add_in: AddressOut):
+    Address.objects.create(**add_in.dict(), user= User.objects.first())
+    return 200, {'ddetails',"address added!"}
+
+    
 
 
-# @products_controller.get('categories', response=List[CategoryOut])
-# def list_categories(request):
-#     return Category.objects.all()
 
 
 @address_controller.get('cities', response={
@@ -133,11 +93,24 @@ def list_cities(request):
 
     return 404, {'detail': 'No cities found'}
 
+@address_controller.get('Items',response={
+    200: List[ItemCreate],
+    404: MessageOut,
+})
+def list_item(request):
+    item_qs = Item.objects.all()
+
+    if item_qs:
+        return item_qs
+
+    return 404, {'detail': 'No cities found'}
+
 
 @address_controller.get('cities/{id}', response={
     200: CitiesOut,
     404: MessageOut
 })
+
 def retrieve_city(request, id: UUID4):
     return get_object_or_404(City, id=id)
 
@@ -214,6 +187,40 @@ def reduce_item_quantity(request, id: UUID4):
     return 200, {'detail': 'Item quantity reduced successfully!'}
 
 
+@order_controller.post('item/{id}/increase-qty', response={
+    200: MessageOut
+})
+def increase_qty(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty +=1
+    item.save()
+    return 200 , {'detail': 'Item quantity icreased successfully!'}
+
+
+@order_controller.post('create', response={
+    200: OrderOut ,
+    400: MessageOut
+})
+def create_order():
+    # set order specification
+    orderquery = Order.objects.create(
+        user = User.objects.first(),
+        status = OrderStatus.objects.get(is_defualt=True),
+        ref_code= generate_ref_code(),
+        Order=False,
+    )
+    # get itemes from item tb - to specific user- oserderd is false
+    item_list = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+
+    #links  items to order
+    orderquery.items.add(*item_list)
+    item_list.update(ordered=True)
+    orderquery.total =orderquery.order_total
+    orderquery.save()
+    return {'detail': 'successfull creation'}
+
+
+
 @order_controller.delete('item/{id}', response={
     204: MessageOut
 })
@@ -252,3 +259,5 @@ def create_order(request):
     order_qs.save()
 
     return {'detail': 'order created successfully'}
+
+

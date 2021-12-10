@@ -1,6 +1,6 @@
 from typing import List
 
-from ninja import ModelSchema, Schema
+from ninja import ModelSchema, Schema, schema
 from ninja.orm import create_schema
 from pydantic import UUID4
 
@@ -86,9 +86,26 @@ class ItemSchema(Schema):
 class ItemCreate(Schema):
     product_id: UUID4
     item_qty: int
+    id: UUID4
 
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
 
+class OrderOut(Schema):
+    id: UUID4
+    Status: str
+    ref_code: UUID4
+    total: float
+    user_id : UUID4
+    address_id: UUID4
+    
+
+class AddressOut(UUIDSchema, Schema):
+    
+    city_id:UUID4
+    address1:str
+    address2:str
+    phone:str
+    work_address:bool
 
