@@ -86,9 +86,22 @@ class ItemSchema(Schema):
 class ItemCreate(Schema):
     product_id: UUID4
     item_qty: int
+    id: UUID4
 
 
 class ItemOut(UUIDSchema, ItemSchema):
     pass
+
+class OrderOut(Schema):
+    id: UUID4
+    Status: str
+    ref_code: UUID4
+    total: float
+    user_id : UUID4
+    address_id: UUID4
+    
+
+
+
 
 

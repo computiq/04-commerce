@@ -1,6 +1,7 @@
 import random
 import string
 from typing import List
+from uuid import uuid4
 
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -9,7 +10,7 @@ from ninja import Router
 from pydantic import UUID4
 
 from commerce.models import Product, Category, City, Vendor, Item, Order, OrderStatus
-from commerce.schemas import MessageOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
+from commerce.schemas import MessageOut, OrderOut, ProductOut, CitiesOut, CitySchema, VendorOut, ItemOut, ItemSchema, ItemCreate
 
 products_controller = Router(tags=['products'])
 address_controller = Router(tags=['addresses'])
@@ -133,6 +134,18 @@ def list_cities(request):
 
     return 404, {'detail': 'No cities found'}
 
+@address_controller.get('Items',response={
+    200: List[ItemCreate],
+    404: MessageOut,
+})
+def list_item(request):
+    item_qs = Item.objects.all()
+
+    if item_qs:
+        return item_qs
+
+    return 404, {'detail': 'No cities found'}
+
 
 @address_controller.get('cities/{id}', response={
     200: CitiesOut,
@@ -214,6 +227,40 @@ def reduce_item_quantity(request, id: UUID4):
     return 200, {'detail': 'Item quantity reduced successfully!'}
 
 
+@order_controller.post('item/{id}/increase-qty', response={
+    200: MessageOut
+})
+def increase_qty(request, id: UUID4):
+    item = get_object_or_404(Item, id=id, user=User.objects.first())
+    item.item_qty +=1
+    item.save()
+    return 200 , {'detail': 'Item quantity icreased successfully!'}
+
+
+@order_controller.post('create', response={
+    200: OrderOut ,
+    400: MessageOut
+})
+def create_order():
+    # set order specification
+    orderquery = Order.objects.create(
+        user = User.objects.first(),
+        status = OrderStatus.objects.get(is_defualt=True),
+        ref_code= generate_ref_code(),
+        Order=False,
+    )
+    # get itemes from item tb - to specific user- oserderd is false
+    item_list = Item.objects.filter(user=User.objects.first()).filter(ordered=False)
+
+    #links  items to order
+    orderquery.items.add(*item_list)
+    item_list.update(ordered=True)
+    orderquery.total =orderquery.order_total
+    orderquery.save()
+    return {'detail': 'successfull creation'}
+
+
+
 @order_controller.delete('item/{id}', response={
     204: MessageOut
 })
@@ -252,3 +299,5 @@ def create_order(request):
     order_qs.save()
 
     return {'detail': 'order created successfully'}
+
+
