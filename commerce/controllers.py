@@ -77,8 +77,22 @@ def create_addresse(request, add_in: AddressOut):
     return 200, {'ddetails',"address added!"}
 
     
+@address_controller.get('address/{id}', response={
+    200: AddressOut,
+    404: MessageOut
+})
+def retrieve_address(request, id: UUID4):
+    return get_object_or_404(Address, id=id)
 
-
+@address_controller.put('address/{id}', response={
+    200: AddressOut,
+    400: MessageOut
+})
+def update_address(request, id: UUID4, add_in: AddressOut):
+    address = get_object_or_404(Address, id=id)
+    for key, value in add_in.items():
+        setattr(address, key, value)
+    return 200, address
 
 
 @address_controller.get('cities', response={
